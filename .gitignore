@@ -1,0 +1,62 @@
+﻿# Environment and secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+build/
+coverage/
+TestResults/
+*.log
+
+# Runtime and temporary files
+tmp/
+temp/
+.cache/
+*.tmp
+*.bak
+
+# IDE and AI local state
+.vscode/
+.idea/
+.vs/
+.claude/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archives and database backups
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.dump
+*.backup
+
+# Known legacy operational artifacts
+/project.zip
+/deploy.tar.gz
+/yowthi_erp_backup_*.sql
+/fix-*.sql
+/tmp_*.sql
+
+# Runtime user uploads
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# Generated PWA development output
+frontend/dev-dist/

@@ -1,0 +1,645 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OFFICE
+  FACTORY
+  GUIDED
+}
+
+enum ProcessingType {
+  H01
+  H02
+  H03
+}
+
+enum ProcessingSourceType {
+  RECEIVING
+  DEFECT
+}
+
+enum ProductType {
+  EXPORT
+  DOMESTIC
+}
+
+enum InventoryStatus {
+  NONE
+  IN_SALES
+  DONE
+}
+
+enum PackagingApplicableTo {
+  RECEIVING_ORDER
+  SALES_ORDER
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  auditLogs    AuditLog[]
+  costLockedOrders ReceivingOrder[] @relation("CostLockedBy")
+  costLockedContractDetails ContractWorkDetail[] @relation("ContractCostLockedBy")
+  @@map("users")
+}
+
+model Farmer {
+  id          String    @id
+  name        String
+  phone       String?
+  address     String?
+  bankName    String?
+  bankAccount String?
+  imageUrl    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  receivingBatches  ReceivingBatch[]
+  receivingDetails  ReceivingDetail[]
+  processingDetails ProcessingDetail[]
+  @@map("farmers")
+}
+
+model Employee {
+  id          String    @id
+  name        String
+  phone       String?
+  address     String?
+  bankName    String?
+  bankAccount String?
+  imageUrl    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  processingDetails ProcessingDetail[]
+  packagingDetails  PackagingDetail[]
+  @@map("employees")
+}
+
+model Supplier {
+  id          String    @id
+  name        String
+  phone       String?
+  address     String?
+  bankName    String?
+  bankAccount String?
+  imageUrl    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contractWorkDetails ContractWorkDetail[]
+  @@map("suppliers")
+}
+
+model Carrier {
+  id          String    @id
+  name        String
+  phone       String?
+  address     String?
+  bankName    String?
+  bankAccount String?
+  imageUrl    String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  transportOrders TransportOrder[]
+  @@map("carriers")
+}
+
+model Customer {
+  id        String    @id
+  name      String
+  phone     String?
+  address   String?
+  imageUrl  String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  salesOrders SalesOrder[]
+  @@map("customers")
+}
+
+model ReceivingItem {
+  id        String    @id
+  name      String
+  imageUrl  String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  receivingOrders  ReceivingOrder[]
+  receivingDetails ReceivingDetail[]
+  processingOrders ProcessingOrder[]
+  @@map("receiving_items")
+}
+
+model ProcessingItem {
+  id        String         @id
+  type      ProcessingType @unique
+  name      String
+  imageUrl  String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  processingDetails ProcessingDetail[]
+  @@map("processing_items")
+}
+
+model PackagingItem {
+  id           String                @id
+  name         String
+  imageUrl     String?
+  wageRate     Decimal?              @db.Decimal(12, 2)
+  applicableTo PackagingApplicableTo @default(SALES_ORDER)
+  isDeleted    Boolean               @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  packagingDetails PackagingDetail[]
+  @@map("packaging_items")
+}
+
+model Product {
+  id          String      @id
+  name        String
+  imageUrl    String?
+  unitWeight  Decimal?    @db.Decimal(10, 3)
+  productType ProductType @default(EXPORT)
+  isDeleted   Boolean     @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  salesDetails        SalesDetail[]
+  contractWorkDetails ContractWorkDetail[]
+  inventoryDetails    InventoryDetail[]
+  @@map("products")
+}
+
+model PurchaseItem {
+  id        String    @id
+  name      String
+  imageUrl  String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  purchaseDetails PurchaseDetail[]
+  @@map("purchase_items")
+}
+
+// ==========================================
+// 進貨系統（S）
+// ==========================================
+
+model ReceivingOrder {
+  id              String        @id
+  orderDate       DateTime      @db.Date
+  receivingItemId String
+  receivingItem   ReceivingItem @relation(fields: [receivingItemId], references: [id])
+  h02Done         Boolean       @default(false)
+  h03Done         Boolean       @default(false)
+  salesDone       Boolean       @default(false)
+  inSales         Boolean       @default(false)
+
+  // ── 庫存批次生產成本分析（2026-06-29 新增）──
+  costLocked        Boolean   @default(false)        // 是否已鎖定生產成本
+  costUnitPrice     Decimal?  @db.Decimal(12, 2)      // 欄位1：基礎成本/kg（H01+H02金額 ÷ H02完成品總重量），鎖定後不變
+  costUnitPriceEst  Decimal?  @db.Decimal(12, 2)      // 欄位2：預估成本/kg（欄位1 + 預估包裝成本/kg），鎖定後不變
+  costEstBasketQty  Int?                              // 欄位2 計算用：預估籃子數量（手動輸入）
+  costEstBoxQty     Int?                              // 欄位2 計算用：預估箱子數量（手動輸入）
+  costLockedAt      DateTime?                         // 鎖定時間
+  costLockedBy      Int?                              // 鎖定操作人 User.id
+  costLockedByUser  User?     @relation("CostLockedBy", fields: [costLockedBy], references: [id])
+
+  isDeleted       Boolean       @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  batches              ReceivingBatch[]
+  processingDetails    ProcessingDetail[]
+  inventoryOrderLinks  InventoryReceivingOrder[]
+  packagingOrders      PackagingOrder[]
+  @@unique([orderDate, receivingItemId])
+  @@map("receiving_orders")
+}
+
+model ReceivingBatch {
+  id             String         @id
+  orderId        String
+  order          ReceivingOrder @relation(fields: [orderId], references: [id])
+  farmerId       String
+  farmer         Farmer         @relation(fields: [farmerId], references: [id])
+  batchNo        Int
+  processingDone Boolean        @default(false)
+  salesConfirmed Boolean        @default(false)
+  isDeleted      Boolean        @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  details           ReceivingDetail[]
+  processingDetails ProcessingDetail[]
+  salesBatches      SalesReceivingBatch[]
+  @@unique([orderId, farmerId, batchNo])
+  @@map("receiving_batches")
+}
+
+model ReceivingDetail {
+  id        Int            @id @default(autoincrement())
+  batchId   String
+  batch     ReceivingBatch @relation(fields: [batchId], references: [id])
+  itemId    String
+  item      ReceivingItem  @relation(fields: [itemId], references: [id])
+  farmerId  String
+  farmer    Farmer         @relation(fields: [farmerId], references: [id])
+  quantity  Decimal        @db.Decimal(10, 3)
+  unitPrice Decimal        @db.Decimal(12, 2)
+  amount    Int
+  isDeleted Boolean        @default(false)
+  deletedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  @@map("receiving_details")
+}
+
+// ==========================================
+// 加工系統（PO）
+// ==========================================
+
+model ProcessingOrder {
+  id              String               @id @default(cuid())
+  orderNo         String               @unique
+  orderDate       DateTime             @db.Date
+  receivingItemId String
+  receivingItem   ReceivingItem        @relation(fields: [receivingItemId], references: [id])
+  sourceType      ProcessingSourceType
+  isDeleted       Boolean              @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  details ProcessingDetail[]
+  @@unique([orderDate, receivingItemId])
+  @@map("processing_orders")
+}
+
+model ProcessingDetail {
+  id           Int             @id @default(autoincrement())
+  batchCode    String          @unique
+  orderId      String
+  order        ProcessingOrder @relation(fields: [orderId], references: [id])
+  itemId       String
+  item         ProcessingItem  @relation(fields: [itemId], references: [id])
+  batchId      String?
+  batch        ReceivingBatch? @relation(fields: [batchId], references: [id])
+  farmerId     String?
+  farmer       Farmer?         @relation(fields: [farmerId], references: [id])
+  receivingOrderId String?
+  receivingOrder   ReceivingOrder? @relation(fields: [receivingOrderId], references: [id])
+  defectPoolId String?
+  defectPool   DefectPool?     @relation(fields: [defectPoolId], references: [id])
+  employeeId   String
+  employee     Employee        @relation(fields: [employeeId], references: [id])
+  inputQty     Decimal         @db.Decimal(10, 3)
+  outputQty    Decimal         @db.Decimal(10, 3)
+  defectQty    Decimal         @db.Decimal(10, 3) @default(0)
+  wasteQty     Decimal         @db.Decimal(10, 3) @default(0)
+  wageRate     Decimal         @db.Decimal(12, 2)
+  amount       Int
+  workTime     DateTime        @default(now())
+  salesOrderId String?
+  salesOrder   SalesOrder?     @relation(fields: [salesOrderId], references: [id])
+  notes        String?
+  isOffset     Boolean         @default(false)
+  isDeleted    Boolean         @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  auditLogs    AuditLog[]
+  defectPools  DefectPool[]    @relation("SourceDetail")
+  @@map("processing_details")
+}
+
+model DefectPool {
+  id                String   @id @default(cuid())
+  sourceBatchId     String
+  sourceDetail      ProcessingDetail @relation("SourceDetail", fields: [sourceBatchId], references: [batchCode])
+  quantity          Decimal  @db.Decimal(10, 3)
+  usedQuantity      Decimal  @db.Decimal(10, 3) @default(0)
+  remainingQuantity Decimal  @db.Decimal(10, 3)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  processingDetails ProcessingDetail[]
+  @@map("defect_pool")
+}
+
+// ==========================================
+// 成品入庫系統（I）
+// ==========================================
+
+model InventoryOrder {
+  id        String    @id   // I-YYYYMMDD-XXX
+  orderDate DateTime  @db.Date
+  notes     String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  details         InventoryDetail[]
+  receivingOrders InventoryReceivingOrder[]
+  contractOrders  InventoryContractOrder[]
+  @@map("inventory_orders")
+}
+
+model InventoryDetail {
+  id             Int             @id @default(autoincrement())
+  orderId        String
+  order          InventoryOrder  @relation(fields: [orderId], references: [id])
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id])
+  quantity       Int
+  weight         Decimal         @db.Decimal(10, 3) @default(0)
+  unitPrice      Decimal         @db.Decimal(12, 2) @default(0)
+  amount         Int             @default(0)
+  salesStatus    InventoryStatus @default(NONE)
+  isDeleted      Boolean         @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  salesDetails SalesInventoryDetail[]
+  @@map("inventory_details")
+}
+
+model InventoryReceivingOrder {
+  inventoryOrderId String
+  receivingOrderId String
+  inventoryOrder   InventoryOrder @relation(fields: [inventoryOrderId], references: [id])
+  receivingOrder   ReceivingOrder @relation(fields: [receivingOrderId], references: [id])
+  @@id([inventoryOrderId, receivingOrderId])
+  @@map("inventory_receiving_orders")
+}
+
+model InventoryContractOrder {
+  inventoryOrderId  String
+  contractOrderId   String
+  inventoryOrder    InventoryOrder    @relation(fields: [inventoryOrderId], references: [id])
+  contractOrder     ContractWorkOrder @relation(fields: [contractOrderId], references: [id])
+  @@id([inventoryOrderId, contractOrderId])
+  @@map("inventory_contract_orders")
+}
+
+// ==========================================
+// 代工系統（C）
+// ==========================================
+
+model ContractWorkOrder {
+  id            String    @id
+  orderDate     DateTime  @db.Date
+  inventoryDone Boolean   @default(false)
+  salesDone     Boolean   @default(false)
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  details        ContractWorkDetail[]
+  inventoryLinks InventoryContractOrder[]
+  @@map("contract_work_orders")
+}
+
+model ContractWorkDetail {
+  id         Int               @id @default(autoincrement())
+  orderId    String
+  order      ContractWorkOrder @relation(fields: [orderId], references: [id])
+  supplierId String
+  supplier   Supplier          @relation(fields: [supplierId], references: [id])
+  productId  String
+  product    Product           @relation(fields: [productId], references: [id])
+  quantity   Decimal           @db.Decimal(10, 3)
+  weight     Decimal           @db.Decimal(10, 3)
+  unitPrice  Decimal           @db.Decimal(12, 2)
+  amount     Int
+  notes      String?
+
+  // ── 代工成本鎖定（2026-06-30 新增）──
+  costLocked       Boolean   @default(false)                     // 是否已鎖定生產成本
+  costUnitPrice    Decimal?  @db.Decimal(12, 2)                  // 鎖定的單位成本 = amount ÷ (quantity × weight)
+  costLockedAt     DateTime?                                     // 鎖定時間
+  costLockedBy     Int?                                          // 鎖定操作人 User.id
+  costLockedByUser User?     @relation("ContractCostLockedBy", fields: [costLockedBy], references: [id])
+
+  isDeleted  Boolean           @default(false)
+  deletedAt  DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  @@map("contract_work_details")
+}
+
+// ==========================================
+// 包裝系統（P）— 純工資記錄
+// ==========================================
+
+model PackagingOrder {
+  id               String          @id
+  orderDate        DateTime        @db.Date
+  salesOrderId     String?
+  salesOrder       SalesOrder?     @relation(fields: [salesOrderId], references: [id])
+  receivingOrderId String?
+  receivingOrder   ReceivingOrder? @relation(fields: [receivingOrderId], references: [id])
+  salesDone        Boolean         @default(false)
+  isDeleted        Boolean         @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  details PackagingDetail[]
+  @@map("packaging_orders")
+}
+
+model PackagingDetail {
+  id         Int            @id @default(autoincrement())
+  orderId    String
+  order      PackagingOrder @relation(fields: [orderId], references: [id])
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id])
+  itemId     String
+  item       PackagingItem  @relation(fields: [itemId], references: [id])
+  quantity   Decimal        @db.Decimal(10, 3)
+  wageRate   Decimal        @db.Decimal(12, 2)
+  amount     Int
+  workTime   DateTime       @default(now())
+  notes      String?
+  isDeleted  Boolean        @default(false)
+  deletedAt  DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  @@map("packaging_details")
+}
+
+// ==========================================
+// 運輸系統（T）
+// ==========================================
+
+model TransportOrder {
+  id        String    @id            // T-YYYYMMDD-XXX
+  orderDate DateTime  @db.Date
+  carrierId String
+  carrier   Carrier   @relation(fields: [carrierId], references: [id])
+  quantity  Decimal   @db.Decimal(10, 3)   // 車數
+  unitPrice Decimal   @db.Decimal(12, 2)
+  amount    Int                             // Math.floor(quantity × unitPrice)
+  notes     String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  @@map("transport_orders")
+}
+
+// ==========================================
+// 銷售系統（O）
+// ==========================================
+
+model SalesOrder {
+  id            String    @id
+  orderDate     DateTime  @db.Date
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  packagingDone Boolean   @default(false)
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  details           SalesDetail[]
+  processingDetails ProcessingDetail[]
+  packagingOrders   PackagingOrder[]
+  receivingBatches  SalesReceivingBatch[]
+  inventoryDetails  SalesInventoryDetail[]
+  @@map("sales_orders")
+}
+
+model SalesDetail {
+  id        Int        @id @default(autoincrement())
+  orderId   String
+  order     SalesOrder @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product    @relation(fields: [productId], references: [id])
+  weight    Decimal    @db.Decimal(10, 3)
+  quantity  Decimal    @db.Decimal(10, 3)
+  unitPrice Decimal    @db.Decimal(12, 2)
+  amount    Int
+  isDeleted Boolean    @default(false)
+  deletedAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  @@map("sales_details")
+}
+
+model SalesReceivingBatch {
+  salesOrderId     String
+  receivingBatchId String
+  salesOrder       SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  receivingBatch   ReceivingBatch @relation(fields: [receivingBatchId], references: [id])
+  @@id([salesOrderId, receivingBatchId])
+  @@map("sales_receiving_batches")
+}
+
+// 銷售單 ↔ 入庫明細
+model SalesInventoryDetail {
+  id                Int             @id @default(autoincrement())
+  salesOrderId      String
+  salesOrder        SalesOrder      @relation(fields: [salesOrderId], references: [id])
+  inventoryDetailId Int
+  inventoryDetail   InventoryDetail @relation(fields: [inventoryDetailId], references: [id])
+  quantity          Int             // 賣出數量
+  unitPrice         Decimal         @db.Decimal(12, 2)
+  amount            Int             // Math.floor(quantity × unitPrice) — 銷售金額(營收)
+  costUnitPrice     Decimal         @db.Decimal(12, 2) @default(0) // 快取自 InventoryDetail.unitPrice，關聯建立時鎖定
+  costAmount        Int             @default(0) // Math.floor(quantity × costUnitPrice) — 入庫成本
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  @@map("sales_inventory_details")
+}
+
+// ==========================================
+// 採購系統（B）
+// ==========================================
+
+model PurchaseOrder {
+  id        String    @id
+  orderDate DateTime  @db.Date
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  details PurchaseDetail[]
+  @@map("purchase_orders")
+}
+
+model PurchaseDetail {
+  id        Int           @id @default(autoincrement())
+  orderId   String
+  order     PurchaseOrder @relation(fields: [orderId], references: [id])
+  itemId    String
+  item      PurchaseItem  @relation(fields: [itemId], references: [id])
+  quantity  Decimal       @db.Decimal(10, 3)
+  unitPrice Decimal       @db.Decimal(12, 2)
+  amount    Int
+  notes     String?
+  isDeleted Boolean       @default(false)
+  deletedAt DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  @@map("purchase_details")
+}
+
+// ==========================================
+// 成本分析認列追蹤（避免重複計入）
+// ==========================================
+
+// 記錄某個成本來源（進貨單 H01+H02、進貨單 H03、代工單）已被哪些銷售單計入過成本
+// 查詢時：若某來源現有認列的銷售單完全被包含在這次查詢選取的銷售單集合中 → 正常計入並擴充認列
+// 若現有認列包含任何不在這次選取範圍內的銷售單 → 排除（避免重複計入）
+model CostClaim {
+  id           Int      @id @default(autoincrement())
+  sourceType   String   // 'RECEIVING_H01H02' | 'RECEIVING_H03' | 'CONTRACT'
+  sourceId     String   // receivingOrderId 或 contractOrderId
+  salesOrderId String
+  createdAt    DateTime @default(now())
+
+  @@unique([sourceType, sourceId, salesOrderId])
+  @@index([sourceType, sourceId])
+  @@map("cost_claims")
+}
+
+// ==========================================
+// Audit Log
+// ==========================================
+
+model AuditLog {
+  id                 Int              @id @default(autoincrement())
+  actionType         String
+  targetTable        String
+  targetId           String
+  operatorId         Int
+  operator           User             @relation(fields: [operatorId], references: [id])
+  operatedAt         DateTime         @default(now())
+  ipAddress          String?
+  beforeData         Json?
+  notes              String?
+  processingDetailId Int?
+  processingDetail   ProcessingDetail? @relation(fields: [processingDetailId], references: [id])
+  @@map("audit_logs")
+}
