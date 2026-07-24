@@ -12,6 +12,7 @@ import {
 import {
   EmployeeWageSummaryInquiryQueryDto,
   EmployeeWageSummaryInquiryResult,
+  EmployeeWageSummaryInquiryRow,
 } from './dto/employee-wage-summary-inquiry.dto';
 import {
   FarmerProcessingInquiryQueryDto,
