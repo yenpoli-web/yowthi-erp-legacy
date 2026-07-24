@@ -10,6 +10,10 @@ import {
   ProcessingWageInquiryResult,
 } from './dto/processing-wage-inquiry.dto';
 import {
+  EmployeeWageSummaryInquiryQueryDto,
+  EmployeeWageSummaryInquiryResult,
+} from './dto/employee-wage-summary-inquiry.dto';
+import {
   FarmerProcessingInquiryQueryDto,
   FarmerProcessingInquiryResult,
 } from './dto/farmer-processing-inquiry.dto';
@@ -201,6 +205,60 @@ export class InquiryService {
    * 未提供日期時回傳空陣列，前端有快捷判斷、不套用這個限定、改為顯示全部員工
    * 改用 JS 自行去重（不用 Prisma distinct），避免 distinct 搭配巢狀 select 關聯可能不相容的問題
    */
+  /**
+   * 員工薪資總表：僅統計加工（H01/H02/H03）金額，不包含包裝
+   * 每日每員工合併一列（同一天同一人的多筆加工明細加總）
+   */
+  async employeeWageSummaryInquiry(
+    query: EmployeeWageSummaryInquiryQueryDto,
+  ): Promise<EmployeeWageSummaryInquiryResult> {
+    const where: any = { isDeleted: false };
+
+    if (query.employeeId) {
+      where.employeeId = query.employeeId;
+    }
+    if (query.startDate || query.endDate) {
+      where.order = {
+        orderDate: {
+          ...(query.startDate ? { gte: new Date(query.startDate) } : {}),
+          ...(query.endDate ? { lte: new Date(query.endDate) } : {}),
+        },
+      };
+    }
+
+    const details = await this.prisma.processingDetail.findMany({
+      where,
+      include: { employee: true, order: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 以「日期 + 員工ID」合併加總
+    const grouped = new Map<string, EmployeeWageSummaryInquiryRow>();
+    for (const d of details) {
+      const dateKey = d.order.orderDate.toISOString().slice(0, 10);
+      const key = `${dateKey}_${d.employeeId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.amount += d.amount;
+      } else {
+        grouped.set(key, {
+          date: d.order.orderDate,
+          employeeId: d.employee.id,
+          employeeName: d.employee.name,
+          amount: d.amount,
+        });
+      }
+    }
+
+    const rows = Array.from(grouped.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+    const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
+
+    return {
+      rows,
+      summary: { totalAmount },
+    };
+  }
+
   async processingWageEmployees(startDate?: string, endDate?: string) {
     if (!startDate && !endDate) return [];
 

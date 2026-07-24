@@ -106,6 +106,29 @@ export interface ProcessingWageEmployeeRow {
 export const getProcessingWageEmployees = (params: { startDate?: string; endDate?: string }) =>
   api.get<ProcessingWageEmployeeRow[]>('/inquiry/processing-wage/employees', { params })
 
+export interface EmployeeWageSummaryInquiryQuery {
+  startDate?: string
+  endDate?: string
+  employeeId?: string
+}
+
+export interface EmployeeWageSummaryInquiryRow {
+  date: string
+  employeeId: string
+  employeeName: string
+  amount: number
+}
+
+export interface EmployeeWageSummaryInquiryResult {
+  rows: EmployeeWageSummaryInquiryRow[]
+  summary: {
+    totalAmount: number
+  }
+}
+
+export const getEmployeeWageSummaryInquiry = (params: EmployeeWageSummaryInquiryQuery) =>
+  api.get<EmployeeWageSummaryInquiryResult>('/inquiry/employee-wage-summary', { params })
+
 export interface FarmerProcessingInquiryQuery {
   startDate?: string
   endDate?: string
