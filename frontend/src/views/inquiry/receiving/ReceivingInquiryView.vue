@@ -77,10 +77,11 @@
 
       <div v-else class="result-table">
         <div class="row head">
-          <span>{{ t('colDate') }}</span><span>{{ t('colFarmer') }}</span><span>{{ t('colItem') }}</span><span>{{ t('colQty') }}</span><span>{{ t('colUnitPrice') }}</span><span>{{ t('colAmount') }}</span>
+          <span>{{ t('colDate') }}</span><span>{{ t('colFarmerId') }}</span><span>{{ t('colFarmer') }}</span><span>{{ t('colItem') }}</span><span>{{ t('colQty') }}</span><span>{{ t('colUnitPrice') }}</span><span>{{ t('colAmount') }}</span>
         </div>
         <div v-for="(r, i) in store.receivingResult.rows" :key="i" class="row">
           <span>{{ formatDate(r.date) }}</span>
+          <span>{{ r.farmerId }}</span>
           <span>{{ r.farmerName }}</span>
           <span>{{ r.itemName }}</span>
           <span>{{ r.quantity.toFixed(1) }}</span>
@@ -206,6 +207,7 @@ function buildPdfOptions() {
     subtitle: `ช่วงวันที่ ${startDate.value || 'ไม่จำกัด'} ~ ${endDate.value || 'ไม่จำกัด'}`,
     columns: [
       { header: 'วันที่', key: 'date' },
+      { header: 'รหัสเกษตรกร', key: 'farmerId' },
       { header: 'เกษตรกร', key: 'farmerName' },
       { header: 'สินค้า', key: 'itemName' },
       { header: 'จำนวน', key: 'quantity', align: 'right' as const },
@@ -214,6 +216,7 @@ function buildPdfOptions() {
     ],
     rows: store.receivingResult.rows.map((r) => ({
       date: formatDate(r.date),
+      farmerId: r.farmerId,
       farmerName: r.farmerName,
       itemName: r.itemName.split('/')[0].trim(),
       quantity: r.quantity.toFixed(1),
@@ -262,6 +265,7 @@ function exportExcel() {
     generateExcel({
       columns: [
         { header: '日期', key: 'date' },
+        { header: '農民ID', key: 'farmerId' },
         { header: '農民', key: 'farmerName' },
         { header: '進貨品項', key: 'itemName' },
         { header: '數量', key: 'quantity' },
@@ -270,6 +274,7 @@ function exportExcel() {
       ],
       rows: store.receivingResult.rows.map((r) => ({
         date: formatDate(r.date),
+        farmerId: r.farmerId,
         farmerName: r.farmerName,
         itemName: r.itemName.split('/')[0].trim(),
         quantity: r.quantity,
@@ -278,6 +283,7 @@ function exportExcel() {
       })),
       groupKey: (row) => String(row.farmerName),
       sumKeys: ['quantity', 'amount'],
+      labelKey: 'farmerName',
       fileName: `進貨明細查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
     })
   } finally {
@@ -317,7 +323,7 @@ onMounted(() => {
 .accent { color: var(--color-accent); }
 
 .result-table { background: var(--color-card); border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; overflow-x: auto; }
-.row { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr 0.8fr 1fr; gap: 8px; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--color-border); min-width: 680px; }
+.row { display: grid; grid-template-columns: 0.9fr 0.7fr 1.1fr 1.1fr 0.7fr 0.8fr 1fr; gap: 8px; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--color-border); min-width: 780px; }
 .row:last-child { border-bottom: none; }
 .row.head { background: var(--color-surface); font-weight: 700; color: var(--color-text-muted); font-size: 12px; }
 
