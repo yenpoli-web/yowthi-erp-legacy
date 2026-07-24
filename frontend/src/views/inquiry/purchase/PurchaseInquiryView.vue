@@ -27,6 +27,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.purchaseResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -72,6 +80,7 @@ import { useToastStore } from '../../../stores/toast'
 import DatePicker from '../../../components/common/DatePicker.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -81,6 +90,7 @@ const startDate = ref('')
 const endDate = ref('')
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 function formatDate(d: string) {
   if (!d) return ''
@@ -151,6 +161,33 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.purchaseResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '採購項目', key: 'itemName' },
+        { header: '數量', key: 'quantity' },
+        { header: '單價', key: 'unitPrice' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.purchaseResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        itemName: r.itemName,
+        quantity: r.quantity,
+        unitPrice: r.unitPrice,
+        amount: r.amount,
+      })),
+      sumKeys: ['quantity', 'amount'],
+      fileName: `採購查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 </script>

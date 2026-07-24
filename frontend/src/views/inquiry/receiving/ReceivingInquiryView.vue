@@ -43,6 +43,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.receivingResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -134,6 +142,7 @@ import DatePicker from '../../../components/common/DatePicker.vue'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -149,6 +158,7 @@ const farmerModalOpen = ref(false)
 const itemModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedFarmerNames = computed(() =>
   farmersStore.farmers
@@ -242,6 +252,36 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.receivingResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '農民', key: 'farmerName' },
+        { header: '進貨品項', key: 'itemName' },
+        { header: '數量', key: 'quantity' },
+        { header: '單價', key: 'unitPrice' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.receivingResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        farmerName: r.farmerName,
+        itemName: r.itemName.split('/')[0].trim(),
+        quantity: r.quantity,
+        unitPrice: r.unitPrice,
+        amount: r.amount,
+      })),
+      groupKey: (row) => String(row.farmerName),
+      sumKeys: ['quantity', 'amount'],
+      fileName: `進貨明細查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

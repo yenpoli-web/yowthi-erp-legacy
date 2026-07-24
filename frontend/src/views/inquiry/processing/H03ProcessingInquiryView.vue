@@ -36,6 +36,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.h03ProcessingResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -96,6 +104,7 @@ import DatePicker from '../../../components/common/DatePicker.vue'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -108,6 +117,7 @@ const selectedItemId = ref('')
 const itemModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedItemName = computed(
   () => receivingItemsStore.receivingItems.find((i) => i.id === selectedItemId.value)?.name || '',
@@ -185,6 +195,33 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.h03ProcessingResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '品項', key: 'itemName' },
+        { header: '瑕疵品', key: 'h01Defect' },
+        { header: '完成品(H03)', key: 'h03Output' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.h03ProcessingResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        itemName: r.receivingItemName.split('/')[0].trim(),
+        h01Defect: r.h01Defect,
+        h03Output: r.h03Output,
+        amount: r.amount,
+      })),
+      sumKeys: ['h03Output', 'amount'],
+      fileName: `加工查詢-H03_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

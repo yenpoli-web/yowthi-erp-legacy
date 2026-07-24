@@ -36,6 +36,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.receivingVolumeResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -96,6 +104,7 @@ import DatePicker from '../../../components/common/DatePicker.vue'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -108,6 +117,7 @@ const selectedItemId = ref('')
 const itemModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedItemName = computed(
   () => receivingItemsStore.receivingItems.find((i) => i.id === selectedItemId.value)?.name || '',
@@ -185,6 +195,33 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.receivingVolumeResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '進貨單序號', key: 'orderId' },
+        { header: '數量', key: 'quantity' },
+        { header: '平均單價', key: 'avgPrice' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.receivingVolumeResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        orderId: r.orderId,
+        quantity: r.quantity,
+        avgPrice: r.avgPrice,
+        amount: r.amount,
+      })),
+      sumKeys: ['quantity', 'amount'],
+      fileName: `進貨量查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

@@ -36,6 +36,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.h02ProcessingResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -99,6 +107,7 @@ import DatePicker from '../../../components/common/DatePicker.vue'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -111,6 +120,7 @@ const selectedItemId = ref('')
 const itemModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedItemName = computed(
   () => receivingItemsStore.receivingItems.find((i) => i.id === selectedItemId.value)?.name || '',
@@ -194,6 +204,39 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.h02ProcessingResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '進貨量', key: 'inputQty' },
+        { header: '品項', key: 'itemName' },
+        { header: '完成品(H01)', key: 'h01Output' },
+        { header: '完成品(H02)', key: 'h02Output' },
+        { header: 'H01完成比例', key: 'h01Rate' },
+        { header: 'H02完成比例', key: 'h02Rate' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.h02ProcessingResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        inputQty: r.inputQty,
+        itemName: r.receivingItemName.split('/')[0].trim(),
+        h01Output: r.h01Output,
+        h02Output: r.h02Output,
+        h01Rate: r.h01CompletionRate !== null ? `${r.h01CompletionRate.toFixed(1)}%` : '-',
+        h02Rate: r.h02CompletionRate !== null ? `${r.h02CompletionRate.toFixed(1)}%` : '-',
+        amount: r.amount,
+      })),
+      sumKeys: ['h02Output', 'amount'],
+      fileName: `加工查詢-H02_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

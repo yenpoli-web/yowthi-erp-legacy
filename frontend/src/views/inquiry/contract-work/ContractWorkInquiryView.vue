@@ -43,6 +43,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.contractWorkResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -152,6 +160,7 @@ import { useToastStore } from '../../../stores/toast'
 import DatePicker from '../../../components/common/DatePicker.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -167,6 +176,7 @@ const supplierModalOpen = ref(false)
 const productModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedSupplierNames = computed(() =>
   suppliersStore.suppliers
@@ -272,6 +282,41 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.contractWorkResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '廠商ID', key: 'supplierId' },
+        { header: '廠商名稱', key: 'supplierName' },
+        { header: '商品', key: 'productName' },
+        { header: '數量', key: 'quantity' },
+        { header: '重量', key: 'weight' },
+        { header: '單價', key: 'unitPrice' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.contractWorkResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        supplierId: r.supplierId,
+        supplierName: r.supplierName,
+        productName: r.productName,
+        quantity: r.quantity,
+        weight: r.weight,
+        unitPrice: r.unitPrice,
+        amount: r.amount,
+      })),
+      groupKey: (row) => String(row.supplierName),
+      sumKeys: ['quantity', 'weight', 'amount'],
+      labelKey: 'supplierName',
+      fileName: `代工查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

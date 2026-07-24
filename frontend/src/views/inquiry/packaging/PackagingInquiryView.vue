@@ -37,6 +37,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.packagingResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -113,6 +121,7 @@ import { useToastStore } from '../../../stores/toast'
 import DatePicker from '../../../components/common/DatePicker.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -125,6 +134,7 @@ const selectedItemIds = ref<string[]>([])
 const itemModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedItemNames = computed(() =>
   packagingItemsStore.packagingItems
@@ -214,6 +224,39 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.packagingResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '員工ID', key: 'employeeId' },
+        { header: '員工姓名', key: 'employeeName' },
+        { header: '包裝項目', key: 'itemName' },
+        { header: '數量', key: 'quantity' },
+        { header: '工資率', key: 'wageRate' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.packagingResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        itemName: r.itemName,
+        quantity: r.quantity,
+        wageRate: r.wageRate,
+        amount: r.amount,
+      })),
+      groupKey: (row) => String(row.itemName),
+      sumKeys: ['quantity', 'amount'],
+      labelKey: 'itemName',
+      fileName: `包裝查詢_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 
