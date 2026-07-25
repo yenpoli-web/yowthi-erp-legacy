@@ -1,10 +1,10 @@
 /**
  * 共用 Excel 匯出工具
- * 用法：generateExcel({ columns, rows, fileName, groupKey?, sumKeys? })
+ * 用法：generateExcel({ columns, rows, fileName, sumKeys? })
  *
- * - rows 使用「原始數值」（非 PDF 那種已 toFixed 的字串），確保小計/總計加總正確
- * - groupKey：提供時依回傳字串分組，每組結束插入「XXX 小計」列；不提供則不分組
- * - sumKeys：需要加總的欄位 key，會出現在小計列與最下方「總計」列；其餘欄位小計列留空
+ * - rows 使用「原始數值」（非 PDF 那種已 toFixed 的字串），確保總計加總正確
+ * - sumKeys：需要加總的欄位 key，會出現在最下方「總計」列；其餘欄位總計列留空
+ * - 不分組、不產生小計列，只有整份資料最下方一列總計
  */
 import * as XLSX from 'xlsx'
 
@@ -18,55 +18,30 @@ export interface GenerateExcelOptions {
   rows: Record<string, string | number>[]
   fileName: string
   sheetName?: string
-  /** 分組依據，回傳分組顯示名稱（例如農民姓名）；不提供則不分組小計 */
+  /** @deprecated 不再產生分組小計，此參數會被忽略 */
   groupKey?: (row: Record<string, string | number>) => string
-  /** 需要加總的欄位 key（小計列 + 總計列），不提供則不產生小計/總計列 */
+  /** 需要加總的欄位 key（僅用於最下方「總計」列），不提供則不產生總計列 */
   sumKeys?: string[]
-  /** 小計/總計列的標籤要放在哪一欄，預設放第一欄 */
+  /** 總計列的標籤要放在哪一欄，預設放第一欄 */
   labelKey?: string
 }
 
-function buildAggregateRow(
-  columns: ExcelColumn[],
-  labelKey: string,
-  sumKeys: string[],
-  label: string,
-  data: Record<string, string | number>[],
-): (string | number)[] {
-  return columns.map((c) => {
-    if (c.key === labelKey) return label
-    if (sumKeys.includes(c.key)) {
-      return data.reduce((acc, r) => acc + (Number(r[c.key]) || 0), 0)
-    }
-    return ''
-  })
-}
-
 export function generateExcel(opts: GenerateExcelOptions) {
-  const { columns, rows, sumKeys = [], groupKey } = opts
+  const { columns, rows, sumKeys = [] } = opts
   const labelKey = opts.labelKey ?? columns[0]?.key
   const aoa: (string | number)[][] = [columns.map((c) => c.header)]
 
-  if (groupKey && rows.length) {
-    let currentGroup: string | null = null
-    let bucket: Record<string, string | number>[] = []
-    const flushGroup = () => {
-      if (!bucket.length) return
-      aoa.push(buildAggregateRow(columns, labelKey, sumKeys, `${currentGroup} 小計`, bucket))
-      bucket = []
-    }
-    for (const row of rows) {
-      const g = groupKey(row)
-      if (currentGroup !== null && g !== currentGroup) flushGroup()
-      currentGroup = g
-      bucket.push(row)
-      aoa.push(columns.map((c) => row[c.key] ?? ''))
-    }
-    flushGroup()
-    if (sumKeys.length) aoa.push(buildAggregateRow(columns, labelKey, sumKeys, '總計', rows))
-  } else {
-    for (const row of rows) aoa.push(columns.map((c) => row[c.key] ?? ''))
-    if (sumKeys.length) aoa.push(buildAggregateRow(columns, labelKey, sumKeys, '總計', rows))
+  for (const row of rows) aoa.push(columns.map((c) => row[c.key] ?? ''))
+
+  if (sumKeys.length) {
+    const totalRow = columns.map((c) => {
+      if (c.key === labelKey) return '總計'
+      if (sumKeys.includes(c.key)) {
+        return rows.reduce((acc, r) => acc + (Number(r[c.key]) || 0), 0)
+      }
+      return ''
+    })
+    aoa.push(totalRow)
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa)
