@@ -3,7 +3,7 @@ export interface ReceivingTrueUnitCostInput {
   h01Wage: number;
   h02Wage: number;
   k01k02Wage: number;
-  h02CompletedKg: number;
+  exportInventoryKg: number;
 }
 
 /** 金額與單位成本一律採小數 2 位四捨五入。 */
@@ -14,13 +14,13 @@ export function roundCost(value: number): number {
 export function calculateReceivingTrueUnitCost(
   input: ReceivingTrueUnitCostInput,
 ): number {
-  if (input.h02CompletedKg <= 0) {
-    throw new Error('H02完成公斤數必須大於0');
+  if (input.exportInventoryKg <= 0) {
+    throw new Error('出口入庫總公斤數必須大於0');
   }
 
   return roundCost(
     (input.receivingAmount + input.h01Wage + input.h02Wage + input.k01k02Wage) /
-      input.h02CompletedKg,
+      input.exportInventoryKg,
   );
 }
 

@@ -34,8 +34,18 @@ describe('InquiryService costAnalysis', () => {
                   processingDetails: [{ amount: 50 }],
                 },
               ],
-              processingDetails: [{ amount: 25, outputQty: 100 }],
+              processingDetails: [{ amount: 25, outputQty: 80 }],
               packagingOrders: [{ details: [{ amount: 25 }] }],
+              inventoryOrderLinks: [
+                {
+                  inventoryOrder: {
+                    isDeleted: false,
+                    details: [{ quantity: 10, weight: 10 }],
+                    receivingOrders: [{ receivingOrderId: 'S-001' }],
+                    contractOrders: [],
+                  },
+                },
+              ],
             },
           },
         ]),

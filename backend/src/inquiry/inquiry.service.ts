@@ -850,6 +850,22 @@ export class InquiryService {
                         },
                       },
                     },
+                    inventoryOrderLinks: {
+                      include: {
+                        inventoryOrder: {
+                          include: {
+                            details: {
+                              where: {
+                                isDeleted: false,
+                                product: { productType: 'EXPORT' },
+                              },
+                            },
+                            receivingOrders: true,
+                            contractOrders: true,
+                          },
+                        },
+                      },
+                    },
                   },
                 },
               },
@@ -911,13 +927,32 @@ export class InquiryService {
               (sum, detail) => sum + detail.amount,
               0,
             );
-            const h02CompletedKg = receivingOrder.processingDetails.reduce(
-              (sum, detail) => sum + Number(detail.outputQty),
-              0,
-            );
             const k01k02Wage = receivingOrder.packagingOrders
               .flatMap((order) => order.details)
               .reduce((sum, detail) => sum + detail.amount, 0);
+            const activeInventoryOrders = receivingOrder.inventoryOrderLinks
+              .map((source) => source.inventoryOrder)
+              .filter((order) => !order.isDeleted);
+
+            const hasAmbiguousInventorySource = activeInventoryOrders.some(
+              (order) =>
+                order.receivingOrders.length !== 1 ||
+                order.receivingOrders[0].receivingOrderId !==
+                  receivingOrder.id ||
+                order.contractOrders.length > 0,
+            );
+            if (hasAmbiguousInventorySource) {
+              throw new ConflictException(
+                `進貨單 ${receivingOrder.id} 關聯的入庫單含有多重或代工來源，無法計算真實成本`,
+              );
+            }
+
+            const exportInventoryKg = activeInventoryOrders
+              .flatMap((order) => order.details)
+              .reduce(
+                (sum, detail) => sum + detail.quantity * Number(detail.weight),
+                0,
+              );
 
             try {
               unitCost = calculateReceivingTrueUnitCost({
@@ -925,11 +960,11 @@ export class InquiryService {
                 h01Wage,
                 h02Wage,
                 k01k02Wage,
-                h02CompletedKg,
+                exportInventoryKg,
               });
             } catch {
               throw new ConflictException(
-                `進貨單 ${receivingOrder.id} 沒有有效的 H02 完成公斤數，無法計算真實成本`,
+                `進貨單 ${receivingOrder.id} 沒有有效的出口入庫總公斤數，無法計算真實成本`,
               );
             }
             receivingUnitCostByOrder.set(receivingOrder.id, unitCost);

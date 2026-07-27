@@ -6,16 +6,16 @@ import {
 } from './cost-analysis.calculator';
 
 describe('cost analysis calculator', () => {
-  it('calculates each receiving order true unit cost with K01/K02 and rounds to 2 decimals', () => {
+  it('calculates each receiving order true unit cost from linked export inventory kilograms', () => {
     expect(
       calculateReceivingTrueUnitCost({
         receivingAmount: 4120,
         h01Wage: 1258,
         h02Wage: 266,
         k01k02Wage: 320,
-        h02CompletedKg: 134.4,
+        exportInventoryKg: 132,
       }),
-    ).toBe(44.38);
+    ).toBe(45.18);
   });
 
   it('keeps receiving orders separate even when callers later sum their allocated costs', () => {
@@ -24,14 +24,14 @@ describe('cost analysis calculator', () => {
       h01Wage: 50,
       h02Wage: 25,
       k01k02Wage: 25,
-      h02CompletedKg: 100,
+      exportInventoryKg: 100,
     });
     const sourceB = calculateReceivingTrueUnitCost({
       receivingAmount: 1800,
       h01Wage: 100,
       h02Wage: 50,
       k01k02Wage: 50,
-      h02CompletedKg: 80,
+      exportInventoryKg: 80,
     });
 
     expect(sourceA).toBe(10);
@@ -54,15 +54,15 @@ describe('cost analysis calculator', () => {
     expect(roundCost(45.254)).toBe(45.25);
   });
 
-  it('rejects a receiving source without H02 completed kilograms', () => {
+  it('rejects a receiving source without linked export inventory kilograms', () => {
     expect(() =>
       calculateReceivingTrueUnitCost({
         receivingAmount: 100,
         h01Wage: 10,
         h02Wage: 10,
         k01k02Wage: 10,
-        h02CompletedKg: 0,
+        exportInventoryKg: 0,
       }),
-    ).toThrow('H02完成公斤數必須大於0');
+    ).toThrow('出口入庫總公斤數必須大於0');
   });
 });
