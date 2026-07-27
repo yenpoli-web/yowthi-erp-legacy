@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReceivingInquiryQueryDto, ReceivingInquiryResult } from './dto/receiving-inquiry.dto';
 import {
@@ -54,6 +55,12 @@ import {
   SalesOrdersForCostQueryDto,
   SalesOrderForCostRow,
 } from './dto/cost-analysis.dto';
+import {
+  addCosts,
+  calculateAllocatedCost,
+  calculateReceivingTrueUnitCost,
+  roundCost,
+} from './cost-analysis.calculator';
 
 @Injectable()
 export class InquiryService {
@@ -782,40 +789,195 @@ export class InquiryService {
     let domesticResult: CostAnalysisDomesticResult | null = null;
 
     if (exportOrderIds.length > 0) {
-      // 銷售金額（出口）
       const salesAgg = await this.prisma.salesDetail.aggregate({
-        where: { isDeleted: false, orderId: { in: exportOrderIds }, product: { productType: 'EXPORT' } },
+        where: {
+          isDeleted: false,
+          orderId: { in: exportOrderIds },
+          product: { productType: 'EXPORT' },
+        },
         _sum: { amount: true },
       });
       const totalSales = salesAgg._sum.amount ?? 0;
 
-      // 真實成本（2026-06-30 改版）：Σ（每筆 SalesInventoryDetail 的賣出數量 × 入庫明細的 weight × unitPrice）
-      // unitPrice 是入庫時帶入「進貨單鎖定生產成本」的固定值，每次出貨精準分攤對應數量，
-      // 不需要像舊版那樣追溯整張進貨單的全額成本，天然不會重複也不會漏算，查幾次、查哪些組合結果都一致。
+      // 每張來源進貨單分開計算真實單位成本，再按各銷售單實際使用公斤數分攤。
       const salesInvLinks = await this.prisma.salesInventoryDetail.findMany({
         where: {
           salesOrderId: { in: exportOrderIds },
-          inventoryDetail: { product: { productType: 'EXPORT' } },
+          salesOrder: { isDeleted: false },
+          inventoryDetail: {
+            isDeleted: false,
+            order: { isDeleted: false },
+            product: { productType: 'EXPORT' },
+          },
         },
-        include: { inventoryDetail: { select: { weight: true, unitPrice: true } } },
+        select: {
+          quantity: true,
+          costUnitPrice: true,
+          inventoryDetail: { select: { orderId: true, weight: true } },
+        },
       });
-      const totalRealCost = salesInvLinks.reduce(
-        (s, l) => s + Math.floor(l.quantity * Number(l.inventoryDetail.weight) * Number(l.inventoryDetail.unitPrice)),
-        0,
-      );
 
-      // 包裝費（該銷售單直接關聯的包裝明細，一對一不會重複）
+      const inventoryOrderIds = Array.from(
+        new Set(salesInvLinks.map((link) => link.inventoryDetail.orderId)),
+      );
+      const receivingSources =
+        inventoryOrderIds.length > 0
+          ? await this.prisma.inventoryReceivingOrder.findMany({
+              where: { inventoryOrderId: { in: inventoryOrderIds } },
+              include: {
+                receivingOrder: {
+                  include: {
+                    batches: {
+                      where: { isDeleted: false },
+                      include: {
+                        details: { where: { isDeleted: false } },
+                        processingDetails: {
+                          where: { isDeleted: false, item: { type: 'H01' } },
+                        },
+                      },
+                    },
+                    processingDetails: {
+                      where: { isDeleted: false, item: { type: 'H02' } },
+                    },
+                    packagingOrders: {
+                      where: { isDeleted: false },
+                      include: {
+                        details: {
+                          where: {
+                            isDeleted: false,
+                            item: { applicableTo: 'RECEIVING_ORDER' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            })
+          : [];
+      const contractSources =
+        inventoryOrderIds.length > 0
+          ? await this.prisma.inventoryContractOrder.findMany({
+              where: { inventoryOrderId: { in: inventoryOrderIds } },
+              select: { inventoryOrderId: true, contractOrderId: true },
+            })
+          : [];
+
+      const receivingByInventoryOrder = new Map<
+        string,
+        typeof receivingSources
+      >();
+      for (const source of receivingSources) {
+        const rows =
+          receivingByInventoryOrder.get(source.inventoryOrderId) ?? [];
+        rows.push(source);
+        receivingByInventoryOrder.set(source.inventoryOrderId, rows);
+      }
+      const contractsByInventoryOrder = new Map<
+        string,
+        typeof contractSources
+      >();
+      for (const source of contractSources) {
+        const rows =
+          contractsByInventoryOrder.get(source.inventoryOrderId) ?? [];
+        rows.push(source);
+        contractsByInventoryOrder.set(source.inventoryOrderId, rows);
+      }
+
+      const receivingUnitCostByOrder = new Map<string, number>();
+      let totalRealCost = 0;
+      let totalContractCost = 0;
+
+      for (const link of salesInvLinks) {
+        const inventoryOrderId = link.inventoryDetail.orderId;
+        const receivingRows =
+          receivingByInventoryOrder.get(inventoryOrderId) ?? [];
+        const contractRows =
+          contractsByInventoryOrder.get(inventoryOrderId) ?? [];
+        const soldWeightKg = Number(link.inventoryDetail.weight);
+
+        if (receivingRows.length === 1 && contractRows.length === 0) {
+          const receivingOrder = receivingRows[0].receivingOrder;
+          let unitCost = receivingUnitCostByOrder.get(receivingOrder.id);
+
+          if (unitCost === undefined) {
+            const receivingAmount = receivingOrder.batches
+              .flatMap((batch) => batch.details)
+              .reduce((sum, detail) => sum + detail.amount, 0);
+            const h01Wage = receivingOrder.batches
+              .flatMap((batch) => batch.processingDetails)
+              .reduce((sum, detail) => sum + detail.amount, 0);
+            const h02Wage = receivingOrder.processingDetails.reduce(
+              (sum, detail) => sum + detail.amount,
+              0,
+            );
+            const h02CompletedKg = receivingOrder.processingDetails.reduce(
+              (sum, detail) => sum + Number(detail.outputQty),
+              0,
+            );
+            const k01k02Wage = receivingOrder.packagingOrders
+              .flatMap((order) => order.details)
+              .reduce((sum, detail) => sum + detail.amount, 0);
+
+            try {
+              unitCost = calculateReceivingTrueUnitCost({
+                receivingAmount,
+                h01Wage,
+                h02Wage,
+                k01k02Wage,
+                h02CompletedKg,
+              });
+            } catch {
+              throw new ConflictException(
+                `進貨單 ${receivingOrder.id} 沒有有效的 H02 完成公斤數，無法計算真實成本`,
+              );
+            }
+            receivingUnitCostByOrder.set(receivingOrder.id, unitCost);
+          }
+
+          totalRealCost = addCosts(
+            totalRealCost,
+            calculateAllocatedCost(link.quantity, soldWeightKg, unitCost),
+          );
+          continue;
+        }
+
+        if (receivingRows.length === 0 && contractRows.length >= 1) {
+          totalContractCost = addCosts(
+            totalContractCost,
+            calculateAllocatedCost(
+              link.quantity,
+              soldWeightKg,
+              Number(link.costUnitPrice),
+            ),
+          );
+          continue;
+        }
+
+        throw new ConflictException(
+          `入庫單 ${inventoryOrderId} 的成本來源缺失或同時連結多種來源，請先確認資料`,
+        );
+      }
+
+      // K01/K02 已納入進貨來源真實成本；此處只扣除銷售端包裝費。
       const packagingAgg = await this.prisma.packagingDetail.aggregate({
-        where: { isDeleted: false, order: { isDeleted: false, salesOrderId: { in: exportOrderIds } } },
+        where: {
+          isDeleted: false,
+          item: { applicableTo: 'SALES_ORDER' },
+          order: { isDeleted: false, salesOrderId: { in: exportOrderIds } },
+        },
         _sum: { amount: true },
       });
       const totalPackaging = packagingAgg._sum.amount ?? 0;
 
-      const grossProfit = totalSales - totalRealCost - totalPackaging;
+      const grossProfit = roundCost(
+        totalSales - totalRealCost - totalContractCost - totalPackaging,
+      );
 
       exportResult = {
         totalSales,
         totalRealCost,
+        totalContractCost,
         totalPackaging,
         grossProfit,
       };

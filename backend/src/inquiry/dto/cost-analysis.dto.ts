@@ -33,11 +33,12 @@ export class CostAnalysisQueryDto {
 
 export interface CostAnalysisExportResult {
   totalSales: number; // 銷售金額（出口）
-  // 真實成本（2026-06-30 改版）：Σ（每筆關聯入庫明細的賣出數量 × weight × unitPrice）
-  // unitPrice 來自入庫時帶入的「進貨單鎖定生產成本」，是固定值，不會隨查詢次數重複或漏算
+  // 自產真實成本：Σ（賣出數量 × 每件公斤數 × 來源進貨單真實單位成本）
   totalRealCost: number;
-  totalPackaging: number; // 包裝費（該批銷售單直接關聯的包裝明細，一對一不會重複）
-  grossProfit: number; // 銷售 - 真實成本 - 包裝費
+  // 代工成本：Σ（賣出數量 × 每件公斤數 × 代工鎖定單位成本）
+  totalContractCost: number;
+  totalPackaging: number; // 非K01/K02包裝費（目前為K03/K04）
+  grossProfit: number; // 銷售 - 自產真實成本 - 代工成本 - 非K01/K02包裝費
 }
 
 export interface CostAnalysisDomesticResult {

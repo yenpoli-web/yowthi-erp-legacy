@@ -366,6 +366,7 @@ export interface CostAnalysisQuery {
 export interface CostAnalysisExportResult {
   totalSales: number
   totalRealCost: number
+  totalContractCost: number
   totalPackaging: number
   grossProfit: number
 }
