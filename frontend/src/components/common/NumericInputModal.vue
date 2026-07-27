@@ -181,6 +181,9 @@ function onBackdropClick() {
   font-size: 22px;
   font-weight: 500;
   transition: background 0.1s, transform 0.05s;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .nkey:active {
   background: var(--color-surface-hover);
