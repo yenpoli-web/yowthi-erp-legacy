@@ -192,6 +192,7 @@ export default {
   confirmDeleteSalesOrder: 'ยืนยันลบใบขายนี้?',
   salesDetailAdded: 'เพิ่มรายการขายแล้ว',
   salesDetailUpdated: 'แก้ไขรายการขายแล้ว',
+  salesInventoryEditGuard: 'สินค้านี้เชื่อมโยงกับรายการรับเข้าคลังแล้ว โปรดลบการเชื่อมโยงด้านล่างก่อนแก้ไขสินค้า น้ำหนัก หรือจำนวน แล้วจึงเลือกรายการรับเข้าคลังใหม่ ราคาต่อหน่วยยังแก้ไขได้โดยตรง',
   totalWeight: 'รวมน้ำหนัก',
   totalQtyLabel: 'รวมจำนวน',
   noLinkedBatches: 'ยังไม่มีแบทช์ที่เชื่อมโยง',

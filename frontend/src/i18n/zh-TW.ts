@@ -201,6 +201,7 @@ export default {
   confirmDeleteSalesOrder: '確認刪除此銷售單？',
   salesDetailAdded: '銷售明細已新增',
   salesDetailUpdated: '銷售明細已更新',
+  salesInventoryEditGuard: '此商品已有入庫明細關聯。請先移除下方入庫關聯，修改商品、重量或數量後，再重新選取入庫明細。單價仍可直接修改。',
   totalWeight: '總重量',
   totalQtyLabel: '總數量',
   noLinkedBatches: '尚未關聯進貨批次',
