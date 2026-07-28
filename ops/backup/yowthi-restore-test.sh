@@ -121,8 +121,7 @@ runuser -u postgres -- pg_restore \
   --exit-on-error \
   --no-owner \
   --no-acl \
-  --dbname="${VERIFY_DATABASE}" \
-  "${SNAPSHOT}/database.dump"
+  --dbname="${VERIFY_DATABASE}" < "${SNAPSHOT}/database.dump"
 
 runuser -u postgres -- pg_dump \
   --schema-only \
