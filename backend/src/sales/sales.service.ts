@@ -16,6 +16,9 @@ export class SalesService {
   private readonly linkedInventoryGuardMessage =
     '此銷售商品已有入庫明細關聯，請先移除關聯，修改後再重新選取入庫明細';
 
+  private readonly linkedInventoryOrderDeleteGuardMessage =
+    '此銷售單已有入庫明細關聯，請先移除關聯，再刪除銷售單';
+
   private async assertNoLinkedInventory(
     orderId: string,
     productId: string,
@@ -28,6 +31,17 @@ export class SalesService {
     });
     if (linkedCount > 0) {
       throw new ConflictException(this.linkedInventoryGuardMessage);
+    }
+  }
+
+  private async assertOrderHasNoLinkedInventory(
+    orderId: string,
+  ): Promise<void> {
+    const linkedCount = await this.prisma.salesInventoryDetail.count({
+      where: { salesOrderId: orderId },
+    });
+    if (linkedCount > 0) {
+      throw new ConflictException(this.linkedInventoryOrderDeleteGuardMessage);
     }
   }
 
@@ -165,6 +179,7 @@ export class SalesService {
   async softDeleteOrder(id: string) {
     const order = await this.prisma.salesOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException(`SalesOrder ${id} not found`);
+    await this.assertOrderHasNoLinkedInventory(id);
     return this.prisma.salesOrder.update({
       where: { id },
       data: { isDeleted: true, deletedAt: new Date() },
@@ -177,6 +192,7 @@ export class SalesService {
       include: { details: true, receivingBatches: true },
     });
     if (!order) throw new NotFoundException(`SalesOrder ${id} not found`);
+    await this.assertOrderHasNoLinkedInventory(id);
 
     try {
       await this.prisma.$transaction(async (tx) => {

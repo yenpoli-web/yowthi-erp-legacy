@@ -13,6 +13,13 @@ describe('SalesService inventory edit guard', () => {
 
   function createService(linkedCount = 1) {
     const prisma = {
+      salesOrder: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: detail.orderId,
+          receivingBatches: [],
+        }),
+        update: jest.fn(),
+      },
       salesDetail: {
         findUnique: jest.fn().mockResolvedValue(detail),
         update: jest.fn().mockImplementation(({ data }) =>
@@ -22,9 +29,33 @@ describe('SalesService inventory edit guard', () => {
       salesInventoryDetail: {
         count: jest.fn().mockResolvedValue(linkedCount),
       },
+      $transaction: jest.fn(),
     };
     return { prisma, service: new SalesService(prisma as any) };
   }
+
+  it.each([
+    [
+      'soft delete',
+      (service: SalesService) => service.softDeleteOrder(detail.orderId),
+    ],
+    [
+      'hard delete',
+      (service: SalesService) => service.hardDeleteOrder(detail.orderId, 1),
+    ],
+  ])(
+    'blocks sales-order %s while the order has linked inventory',
+    async (_label, action) => {
+      const { prisma, service } = createService();
+
+      await expect(action(service)).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.salesInventoryDetail.count).toHaveBeenCalledWith({
+        where: { salesOrderId: detail.orderId },
+      });
+      expect(prisma.salesOrder.update).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('blocks quantity changes while the product has linked inventory', async () => {
     const { prisma, service } = createService();
