@@ -1,39 +1,41 @@
-# YOW THI Legacy Transitional ERP
+# YOW THI 現行營運 ERP
 
-YOW THI 公司目前仍在正式環境運作的過渡 ERP。
+本系統是 YOW THI 目前在正式環境持續使用的內部 ERP，也是公司現階段唯一的正式 ERP。
 
-本 Repository 保存經清理、可建置且不含舊污染 Git History 的 Legacy Source Baseline。它不是未來全新 YOW THI ERP 的程式基礎。
+Repository 保存可維護、可建置且排除 Production Secrets、資料庫備份、Runtime Uploads 與產出檔案的 Source Baseline。系統雖沿用既有 Legacy Codebase，但不再以「臨時備份、功能凍結或等待退役」作為目前產品定位。
 
 ## Current Role
 
-- Lifecycle: Operational / Legacy / Transitional
-- Development Mode: Maintenance Only
-- General New Features: Frozen
-- Production Runtime: Existing legacy VPS
-- Replacement Target: New YOW THI ERP
-- Final Disposition: Decommission after replacement, archive verification and observation period
+- Lifecycle: Active Production
+- Product Scope: YOW THI Internal ERP
+- Development Mode: Controlled Maintenance and Business-Critical Improvement
+- Production Runtime: Existing VPS
+- Replacement Project: Not active; any future replacement requires a separate Owner decision
+- Decommission: Not scheduled
 
 ## Allowed Work
 
-- Critical production defect correction
-- Security remediation
-- Production stability correction
-- Backup and restore validation
-- Historical data export
-- Migration, cutover and decommission support
+- Production defect correction
+- Security and stability remediation
+- Backup and restore improvement
+- Data integrity correction
+- Business-required maintenance and bounded improvements
+- Reporting, export and operational usability improvement
+- Future migration or cutover preparation after explicit Owner approval
 
-## Repository Boundaries
+所有變更均應保護現有營運資料，執行與風險相稱的驗證。Production Deployment、Production Database Migration、不可逆資料操作及正式退役仍需要個別明確授權。
 
-- Legacy Repository: `yenpoli-web/yowthi-erp-legacy`
-- Future New ERP Repository: `yenpoli-web/yowthi-erp`
-- Commercial ERP Repository: `yenpoli-web/erp-commercial-platform`
+## Repository Boundary
 
-The three systems have separate product identities, Git histories, databases, deployment environments and lifecycle governance.
+- Current Production Repository: `yenpoli-web/yowthi-erp-legacy`
+- Production database, secrets and runtime uploads remain outside Git
+- Any future replacement ERP must use an independently approved Repository, database, secrets, runtime storage and deployment environment
 
-## Prohibited Direction
+本 Repository 可持續維護目前 ERP，但不得把未確認的新系統商業規則直接套入現行 Production。
 
-- Do not evolve this codebase into the new ERP.
-- Do not use this Repository as the architecture baseline of the new ERP.
-- Do not add general business expansion features.
-- Do not mix this Repository with the commercial ERP.
-- Do not commit `.env`, credentials, database backups, runtime uploads or generated build output.
+## Repository Hygiene
+
+- Do not commit `.env`, credentials or private keys.
+- Do not commit database backups or runtime uploads.
+- Do not commit generated build output or local AI/IDE state.
+- Keep source changes, operational data and deployment credentials separated.
