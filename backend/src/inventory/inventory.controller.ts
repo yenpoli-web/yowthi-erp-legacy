@@ -56,15 +56,6 @@ export class InventoryController {
     return this.inventoryService.findAvailableInventoryDetails(productType);
   }
 
-  @Patch('details/:id/sales-status')
-  @Roles('ADMIN', 'OFFICE')
-  updateDetailSalesStatus(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { salesStatus: string },
-  ) {
-    return this.inventoryService.updateDetailSalesStatus(id, body.salesStatus);
-  }
-
   @Get('orders')
   @Roles('ADMIN', 'OFFICE')
   findAllOrders() { return this.inventoryService.findAllOrders(); }

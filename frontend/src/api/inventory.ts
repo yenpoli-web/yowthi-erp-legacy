@@ -24,9 +24,6 @@ export const updateInventoryDetail = (id: number, dto: Partial<{ productId: stri
   api.patch(`/inventory/details/${id}`, dto)
 export const softDeleteInventoryDetail = (id: number) => api.delete(`/inventory/details/${id}/soft`)
 export const hardDeleteInventoryDetail = (id: number) => api.delete(`/inventory/details/${id}/hard`)
-export const updateInventoryDetailSalesStatus = (id: number, salesStatus: string) =>
-  api.patch(`/inventory/details/${id}/sales-status`, { salesStatus })
-
 export const getAvailableInventoryDetails = (productType?: string) =>
   api.get('/inventory/details/available', { params: productType ? { productType } : undefined })
 

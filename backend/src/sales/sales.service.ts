@@ -500,27 +500,32 @@ export class SalesService {
         await tx.auditLog.create({
           data: { actionType: 'HARD_DELETE', targetTable: 'sales_inventory_details', targetId: String(id), operatorId, ipAddress: ip, beforeData: item as any },
         });
+
+        const invDetail = await tx.inventoryDetail.findUnique({
+          where: { id: item.inventoryDetailId },
+        });
+        if (invDetail) {
+          const soldAgg = await tx.salesInventoryDetail.aggregate({
+            where: { inventoryDetailId: item.inventoryDetailId },
+            _sum: { quantity: true },
+          });
+          const soldTotal = Number(soldAgg._sum.quantity ?? 0);
+          const newStatus = soldTotal <= 0
+            ? 'NONE'
+            : soldTotal >= invDetail.quantity
+              ? 'DONE'
+              : 'IN_SALES';
+          await tx.inventoryDetail.update({
+            where: { id: item.inventoryDetailId },
+            data: { salesStatus: newStatus as any },
+          });
+        }
       });
     } catch (e: any) {
       if (e?.code === 'P2003' || e?.code === 'P2014') {
         throw new ConflictException(`無法刪除：SalesInventoryDetail ${id} 仍有相關資料參考`);
       }
       throw e;
-    }
-
-    // 移除後重新計算 salesStatus
-    const invDetail = await this.prisma.inventoryDetail.findUnique({ where: { id: item.inventoryDetailId } });
-    if (invDetail) {
-      const soldAgg = await this.prisma.salesInventoryDetail.aggregate({
-        where: { inventoryDetailId: item.inventoryDetailId },
-        _sum: { quantity: true },
-      });
-      const soldTotal = Number(soldAgg._sum.quantity ?? 0);
-      const newStatus = soldTotal <= 0 ? 'NONE' : soldTotal >= invDetail.quantity ? 'DONE' : 'IN_SALES';
-      await this.prisma.inventoryDetail.update({
-        where: { id: item.inventoryDetailId },
-        data: { salesStatus: newStatus as any },
-      });
     }
 
     return { success: true };
