@@ -39,3 +39,9 @@ Repository 保存可維護、可建置且排除 Production Secrets、資料庫�
 - Do not commit database backups or runtime uploads.
 - Do not commit generated build output or local AI/IDE state.
 - Keep source changes, operational data and deployment credentials separated.
+
+## Runtime Baseline
+
+- Production and maintenance use Node.js 22 LTS.
+- `.nvmrc` records the validated Production patch version: `22.23.1`.
+- Backend and frontend package manifests declare Node.js 22 as the supported major version.
