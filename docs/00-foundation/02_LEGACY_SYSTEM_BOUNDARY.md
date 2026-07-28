@@ -1,19 +1,22 @@
-# YOW THI Legacy Transitional ERP — System Boundary and Decommission Policy
+# YOW THI 現行營運 ERP — Production Boundary and Future Replacement Policy
 
 ## 1. System Classification
 
-本系統是公司現行過渡 ERP，不是未來目標系統。
+本系統是公司目前正式營運 ERP。
 
 - Production: Active
-- Lifecycle: Legacy / Transitional
-- General New Feature Development: Frozen
-- Maintenance: Allowed under controlled scope
-- Replacement: Planned
-- Decommission: Required after successful replacement
+- Lifecycle: Active Production
+- Codebase: Maintained Legacy Codebase
+- Maintenance: Required
+- Business-Critical Improvements: Allowed under controlled scope
+- Replacement Project: Not active
+- Decommission: Not scheduled
 
-## 2. Environment Boundary
+未來可能建立替代 ERP，不會降低目前系統的維護、安全、備份與資料完整性要求。
 
-### Legacy Production
+## 2. Current Production Boundary
+
+Production 包含：
 
 - Existing VPS
 - Existing PostgreSQL database
@@ -21,83 +24,48 @@
 - Existing production secrets
 - Existing runtime uploads
 
-### New ERP
+Source、Database、Secrets、Runtime Uploads 與 Deployment Credentials 是不同資產。Git Repository 只保存可維護 Source，不保存 Production Secrets 或營運資料。
 
-全新 ERP 必須使用：
+## 3. Change Safety
 
-- Independent GitHub Repository
-- Independent local working directory
-- New VPS
-- New database
-- New secrets
-- New deployment user and credentials
+1. Repository 修改應先在非 Production 環境驗證。
+2. Production Deployment 必須對應可識別的 Git Commit。
+3. Database Migration 必須在執行前備份、審查資料風險與準備復原方式。
+4. 不可用 `db push` 取代需要稽核與重現能力的正式 Production Migration。
+5. Runtime Uploads 與 PostgreSQL 必須具備自動備份及定期還原驗證。
+6. 不得把 Production Worktree 當成 Runtime Data 的版本控制工具。
+
+## 4. Future Replacement Boundary
+
+只有 Project Owner 明確啟動替代專案後，才建立其 Repository 與交付規則。替代系統必須使用：
+
+- Independent Repository and local working directory
+- Independent database
+- Independent secrets and credentials
 - Independent runtime storage
 - Independent backup policy
+- Independently validated deployment environment
 
-## 3. Cutover Principle
+不得在未完成驗證前停止現行 ERP，也不得直接在現行 Production 環境原地覆蓋安裝未驗證的新系統。
 
-採用新舊 VPS 並行策略：
+## 5. Eventual Cutover and Archive Gates
 
-1. 舊 VPS 繼續提供過渡 ERP。
-2. 新 VPS 建立全新 ERP 環境。
-3. 完成測試、資料轉換、驗收與切換演練。
-4. 執行最終資料同步與 Cutover。
-5. 舊 ERP 進入唯讀觀察期。
-6. 完成封存與完整性驗證。
-7. 停止並取消舊 VPS。
+若未來確定替換，本系統只有在以下事項完成後才可進入唯讀或退役：
 
-不得先刪除舊系統，再於同一環境原地安裝未驗證的新 ERP。
+1. Replacement production acceptance.
+2. Final data migration and record-count reconciliation.
+3. Financial, weight, quantity, status and attachment reconciliation.
+4. Human-readable and structured data exports.
+5. Final encrypted database and runtime-upload backup.
+6. Successful restore verification.
+7. Required observation period.
+8. Explicit Project Owner decommission approval.
 
-## 4. Required Archive
+目前上述內容只是未來安全門檻，不是目前的開發 Objective 或退役時程。
 
-PDF 不得作為唯一封存形式。
+## 6. Prohibited Actions
 
-退役前至少必須建立：
-
-- PDF/A human-readable records
-- Structured CSV / JSON or equivalent exports
-- Original attachments and images
-- Final encrypted PostgreSQL backup
-- Schema and migration history
-- Data dictionary
-- Source baseline reference
-- SHA-256 manifest
-- Record-count reconciliation
-- Restore verification record
-
-## 5. Decommission Gates
-
-必須全部通過：
-
-1. New ERP production acceptance.
-2. Final Legacy data freeze.
-3. Final data migration.
-4. Record-count reconciliation.
-5. Financial, weight, quantity and status reconciliation.
-6. Attachment reconciliation.
-7. PDF/A archive generation.
-8. Structured data export.
-9. Final encrypted database backup.
-10. Successful restore test.
-11. New ERP observation period.
-12. Business owner decommission approval.
-
-## 6. Source Authority
-
-本 Legacy Repository 的用途：
-
-- Clean source escrow
-- Controlled maintenance baseline
-- Decommission support
-- Historical implementation reference
-
-它不具有全新 ERP 的架構或產品權威。
-
-## 7. Prohibited Actions
-
-- Do not delete the old VPS before archive and restore verification.
-- Do not rely on PDF as the only archive.
-- Do not store database backups in Git.
-- Do not reuse Legacy secrets in the New ERP.
-- Do not evolve the Legacy codebase into the New ERP.
-- Do not perform destructive cleanup without rollback and owner approval.
+- Do not store database backups, runtime uploads or secrets in Git.
+- Do not perform destructive Production cleanup without rollback and Owner approval.
+- Do not delete the VPS or Production data because a future replacement is only being discussed.
+- Do not import unconfirmed business rules from a future system into current Production.
