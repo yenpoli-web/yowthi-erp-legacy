@@ -14,7 +14,8 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 if [[ -z "${SSH_CONNECTION:-}" ]]; then
-  echo "Refusing automatic security update configuration outside an active SSH session." >&2
+  echo "Refusing automatic security update configuration without a preserved active SSH session." >&2
+  echo "When using sudo, pass --preserve-env=SSH_CONNECTION." >&2
   exit 1
 fi
 

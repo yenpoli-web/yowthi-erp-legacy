@@ -30,10 +30,15 @@ install -m 0750 -o root -g root \
   ops/security/rollback-unattended-upgrades.sh \
   /usr/local/sbin/yowthi-rollback-unattended-upgrades
 
-/usr/local/sbin/yowthi-configure-unattended-upgrades
+sudo --preserve-env=SSH_CONNECTION \
+  /usr/local/sbin/yowthi-configure-unattended-upgrades
 ```
 
 The verification performs an unattended-upgrade dry run and refuses an allowed-origin set that contains `jammy-updates` or NodeSource.
+
+The explicit `--preserve-env=SSH_CONNECTION` option retains only the active
+session evidence required by the configuration guard when the command is
+started through `sudo`.
 
 ## Verification
 
