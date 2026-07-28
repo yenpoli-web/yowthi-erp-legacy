@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ReceivingInquiryQueryDto } from './dto/receiving-inquiry.dto';
 import { ReceivingVolumeInquiryQueryDto } from './dto/receiving-volume-inquiry.dto';
 import { ProcessingWageInquiryQueryDto } from './dto/processing-wage-inquiry.dto';
+import { EmployeeWageSummaryInquiryQueryDto } from './dto/employee-wage-summary-inquiry.dto';
 import { FarmerProcessingInquiryQueryDto } from './dto/farmer-processing-inquiry.dto';
 import { H02ProcessingInquiryQueryDto } from './dto/h02-processing-inquiry.dto';
 import { H03ProcessingInquiryQueryDto } from './dto/h03-processing-inquiry.dto';
@@ -43,6 +44,12 @@ export class InquiryController {
   @Roles('ADMIN', 'OFFICE', 'FACTORY')
   processingWageEmployees(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
     return this.inquiryService.processingWageEmployees(startDate, endDate);
+  }
+
+  @Get('employee-wage-summary')
+  @Roles('ADMIN', 'OFFICE', 'FACTORY')
+  employeeWageSummaryInquiry(@Query() query: EmployeeWageSummaryInquiryQueryDto) {
+    return this.inquiryService.employeeWageSummaryInquiry(query);
   }
 
   @Get('farmer-processing')

@@ -44,6 +44,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.processingWageResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -106,6 +114,7 @@ import DatePicker from '../../../components/common/DatePicker.vue'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { shareImageOfElement, sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 import { getProcessingWageEmployees, type ProcessingWageEmployeeRow } from '../../../api/inquiry'
 
 const { t } = useI18n()
@@ -120,6 +129,7 @@ const employeeModalOpen = ref(false)
 const exporting = ref(false)
 const sharingImage = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 const resultRef = ref<HTMLElement | null>(null)
 const loadingEmployeeFilter = ref(false)
 // 點選「員工」時，若已選日期範圍，只顯示該範圍內有加工明細的員工；未選日期時顯示全部員工
@@ -230,6 +240,41 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.processingWageResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '員工ID', key: 'employeeId' },
+        { header: '員工姓名', key: 'employeeName' },
+        { header: '農民ID', key: 'farmerId' },
+        { header: '農民姓名', key: 'farmerName' },
+        { header: '加工項目', key: 'itemType' },
+        { header: '完成品', key: 'outputQty' },
+        { header: '工資率', key: 'wageRate' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.processingWageResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        farmerId: r.farmerId || '-',
+        farmerName: r.farmerName || '-',
+        itemType: r.itemType,
+        outputQty: r.outputQty,
+        wageRate: r.wageRate,
+        amount: r.amount,
+      })),
+      sumKeys: ['outputQty', 'amount'],
+      fileName: `加工查詢-工資_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

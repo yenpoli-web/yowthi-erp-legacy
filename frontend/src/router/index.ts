@@ -120,6 +120,11 @@ const router = createRouter({
           component: () => import('../views/inquiry/processing/ProcessingWageInquiryView.vue'),
         },
         {
+          path: 'queries/employee-wage-summary',
+          name: 'EmployeeWageSummaryInquiry',
+          component: () => import('../views/inquiry/employee-wage/EmployeeWageSummaryInquiryView.vue'),
+        },
+        {
           path: 'queries/farmer-processing',
           name: 'FarmerProcessingInquiry',
           component: () => import('../views/inquiry/processing/FarmerProcessingInquiryView.vue'),

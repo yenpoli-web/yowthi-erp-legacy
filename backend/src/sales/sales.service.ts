@@ -13,6 +13,38 @@ import { AddSalesBatchesDto } from './dto/add-sales-batches.dto';
 export class SalesService {
   constructor(private prisma: PrismaService) {}
 
+  private readonly linkedInventoryGuardMessage =
+    '此銷售商品已有入庫明細關聯，請先移除關聯，修改後再重新選取入庫明細';
+
+  private readonly linkedInventoryOrderDeleteGuardMessage =
+    '此銷售單已有入庫明細關聯，請先移除關聯，再刪除銷售單';
+
+  private async assertNoLinkedInventory(
+    orderId: string,
+    productId: string,
+  ): Promise<void> {
+    const linkedCount = await this.prisma.salesInventoryDetail.count({
+      where: {
+        salesOrderId: orderId,
+        inventoryDetail: { productId },
+      },
+    });
+    if (linkedCount > 0) {
+      throw new ConflictException(this.linkedInventoryGuardMessage);
+    }
+  }
+
+  private async assertOrderHasNoLinkedInventory(
+    orderId: string,
+  ): Promise<void> {
+    const linkedCount = await this.prisma.salesInventoryDetail.count({
+      where: { salesOrderId: orderId },
+    });
+    if (linkedCount > 0) {
+      throw new ConflictException(this.linkedInventoryOrderDeleteGuardMessage);
+    }
+  }
+
   private fixDate(d: any): string {
     if (!d) return d;
     const dt = new Date(d);
@@ -147,6 +179,7 @@ export class SalesService {
   async softDeleteOrder(id: string) {
     const order = await this.prisma.salesOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException(`SalesOrder ${id} not found`);
+    await this.assertOrderHasNoLinkedInventory(id);
     return this.prisma.salesOrder.update({
       where: { id },
       data: { isDeleted: true, deletedAt: new Date() },
@@ -159,6 +192,7 @@ export class SalesService {
       include: { details: true, receivingBatches: true },
     });
     if (!order) throw new NotFoundException(`SalesOrder ${id} not found`);
+    await this.assertOrderHasNoLinkedInventory(id);
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -220,14 +254,21 @@ export class SalesService {
     });
   }
 
-  // 注意：自 2026-06-26 起，銷售明細數量與入庫批次扣減已改為「多批次 FIFO」模式
-  // （見下方 addInventoryDetails），一筆銷售明細的數量可能對應多筆不同入庫批次，
-  // 不再是單一比一的關係。因此這裡不再嘗試自動同步已關聯的 SalesInventoryDetail，
-  // 避免用錯誤的假設覆蓋掉 FIFO 分配結果。若銷售數量變動且已經有入庫關聯，
-  // 請人工檢查並透過「移除關聯」+「重新選取入庫明細」的方式調整。
+  // 銷售明細與入庫批次採多批次 FIFO，一筆銷售明細可能對應多筆入庫明細。
+  // 已有關聯時不得直接改商品、重量或數量；必須先移除關聯、修改，再重新選取入庫明細。
+  // 單價只影響銷售收入，不改變庫存分配，因此可直接修改。
   async updateDetail(id: number, dto: UpdateSalesDetailDto) {
     const detail = await this.prisma.salesDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`SalesDetail ${id} not found`);
+
+    const changesInventoryAllocation =
+      (dto.productId !== undefined && dto.productId !== detail.productId) ||
+      (dto.weight !== undefined && Number(dto.weight) !== Number(detail.weight)) ||
+      (dto.quantity !== undefined &&
+        Number(dto.quantity) !== Number(detail.quantity));
+    if (changesInventoryAllocation) {
+      await this.assertNoLinkedInventory(detail.orderId, detail.productId);
+    }
 
     const weight = dto.weight !== undefined ? dto.weight : Number(detail.weight);
     const quantity = dto.quantity !== undefined ? dto.quantity : Number(detail.quantity);
@@ -252,6 +293,7 @@ export class SalesService {
   async softDeleteDetail(id: number) {
     const detail = await this.prisma.salesDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`SalesDetail ${id} not found`);
+    await this.assertNoLinkedInventory(detail.orderId, detail.productId);
     return this.prisma.salesDetail.update({
       where: { id },
       data: { isDeleted: true, deletedAt: new Date() },
@@ -261,6 +303,7 @@ export class SalesService {
   async hardDeleteDetail(id: number, operatorId: number, ip?: string) {
     const detail = await this.prisma.salesDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`SalesDetail ${id} not found`);
+    await this.assertNoLinkedInventory(detail.orderId, detail.productId);
 
     try {
       await this.prisma.$transaction(async (tx) => {

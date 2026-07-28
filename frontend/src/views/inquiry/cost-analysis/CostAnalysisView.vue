@@ -68,20 +68,24 @@
         <div class="card-grid">
           <div class="metric-card plus">
             <div class="metric-label">{{ t('costSales') }}</div>
-            <div class="metric-value">฿{{ store.costAnalysisResult.exportResult.totalSales.toLocaleString() }}</div>
+            <div class="metric-value">฿{{ formatMoney(store.costAnalysisResult.exportResult.totalSales) }}</div>
           </div>
           <div class="metric-card minus">
             <div class="metric-label">{{ t('costRealCost') }}</div>
-            <div class="metric-value">-฿{{ store.costAnalysisResult.exportResult.totalRealCost.toLocaleString() }}</div>
+            <div class="metric-value">-฿{{ formatMoney(store.costAnalysisResult.exportResult.totalRealCost) }}</div>
+          </div>
+          <div class="metric-card minus">
+            <div class="metric-label">{{ t('costContractWork') }}</div>
+            <div class="metric-value">-฿{{ formatMoney(store.costAnalysisResult.exportResult.totalContractCost) }}</div>
           </div>
           <div class="metric-card minus">
             <div class="metric-label">{{ t('costPackaging') }}</div>
-            <div class="metric-value">-฿{{ store.costAnalysisResult.exportResult.totalPackaging.toLocaleString() }}</div>
+            <div class="metric-value">-฿{{ formatMoney(store.costAnalysisResult.exportResult.totalPackaging) }}</div>
           </div>
         </div>
         <div class="result-card sub" :class="{ negative: store.costAnalysisResult.exportResult.grossProfit < 0 }">
           <div class="result-label">{{ t('costGrossProfit') }}</div>
-          <div class="result-value">฿{{ store.costAnalysisResult.exportResult.grossProfit.toLocaleString() }}</div>
+          <div class="result-value">฿{{ formatMoney(store.costAnalysisResult.exportResult.grossProfit) }}</div>
         </div>
       </div>
 
@@ -91,23 +95,23 @@
         <div class="card-grid">
           <div class="metric-card plus">
             <div class="metric-label">{{ t('costSales') }}</div>
-            <div class="metric-value">฿{{ store.costAnalysisResult.domesticResult.totalSales.toLocaleString() }}</div>
+            <div class="metric-value">฿{{ formatMoney(store.costAnalysisResult.domesticResult.totalSales) }}</div>
           </div>
           <div class="metric-card minus">
             <div class="metric-label">{{ t('costH03Wage') }}</div>
-            <div class="metric-value">-฿{{ store.costAnalysisResult.domesticResult.totalH03Wage.toLocaleString() }}</div>
+            <div class="metric-value">-฿{{ formatMoney(store.costAnalysisResult.domesticResult.totalH03Wage) }}</div>
           </div>
         </div>
         <div class="result-card sub" :class="{ negative: store.costAnalysisResult.domesticResult.grossProfit < 0 }">
           <div class="result-label">{{ t('costGrossProfit') }}</div>
-          <div class="result-value">฿{{ store.costAnalysisResult.domesticResult.grossProfit.toLocaleString() }}</div>
+          <div class="result-value">฿{{ formatMoney(store.costAnalysisResult.domesticResult.grossProfit) }}</div>
         </div>
       </div>
 
       <div v-if="store.costAnalysisResult.exportResult && store.costAnalysisResult.domesticResult"
         class="result-card main" :class="{ negative: store.costAnalysisResult.combinedGrossProfit < 0 }">
         <div class="result-label">{{ t('costGrossProfitCombined') }}</div>
-        <div class="result-value">฿{{ store.costAnalysisResult.combinedGrossProfit.toLocaleString() }}</div>
+        <div class="result-value">฿{{ formatMoney(store.costAnalysisResult.combinedGrossProfit) }}</div>
       </div>
 
       <p class="cost-note">{{ t('costFormulaNote') }}</p>
@@ -144,6 +148,10 @@ function formatDate(d: string) {
   if (!d) return ''
   const [y, m, day] = d.slice(0, 10).split('-')
   return `${parseInt(day)}/${parseInt(m)}/${y.slice(2)}`
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function toggleExport(id: string) {
@@ -198,24 +206,25 @@ async function buildPdfOptions(): Promise<GeneratePdfOptions | null> {
   if (result.exportResult) {
     const r = result.exportResult
     const g = 'การส่งออก'
-    rows.push({ group: g, item: 'ยอดขาย', amount: r.totalSales.toLocaleString() })
-    rows.push({ group: g, item: 'ต้นทุนจริง', amount: '-' + r.totalRealCost.toLocaleString() })
-    rows.push({ group: g, item: 'ค่าบรรจุภัณฑ์', amount: '-' + r.totalPackaging.toLocaleString() })
-    rows.push({ group: g, item: 'กำไรขั้นต้น (ส่งออก)', amount: r.grossProfit.toLocaleString() })
+    rows.push({ group: g, item: 'ยอดขาย', amount: formatMoney(r.totalSales) })
+    rows.push({ group: g, item: 'ต้นทุนจริง', amount: '-' + formatMoney(r.totalRealCost) })
+    rows.push({ group: g, item: 'ต้นทุนการจ้างผลิตภายนอก', amount: '-' + formatMoney(r.totalContractCost) })
+    rows.push({ group: g, item: 'ค่าบรรจุภัณฑ์', amount: '-' + formatMoney(r.totalPackaging) })
+    rows.push({ group: g, item: 'กำไรขั้นต้น (ส่งออก)', amount: formatMoney(r.grossProfit) })
   }
   if (result.domesticResult) {
     const r = result.domesticResult
     const g = 'การขายภายใน'
-    rows.push({ group: g, item: 'ยอดขาย', amount: r.totalSales.toLocaleString() })
-    rows.push({ group: g, item: 'ต้นทุนการแปรรูป (H03)', amount: '-' + r.totalH03Wage.toLocaleString() })
-    rows.push({ group: g, item: 'กำไรขั้นต้น (ภายใน)', amount: r.grossProfit.toLocaleString() })
+    rows.push({ group: g, item: 'ยอดขาย', amount: formatMoney(r.totalSales) })
+    rows.push({ group: g, item: 'ต้นทุนการแปรรูป (H03)', amount: '-' + formatMoney(r.totalH03Wage) })
+    rows.push({ group: g, item: 'กำไรขั้นต้น (ภายใน)', amount: formatMoney(r.grossProfit) })
   }
 
   const summary: { label: string; value: string }[] = []
-  if (result.exportResult) summary.push({ label: 'กำไรส่งออก', value: '฿' + result.exportResult.grossProfit.toLocaleString() })
-  if (result.domesticResult) summary.push({ label: 'กำไรภายใน', value: '฿' + result.domesticResult.grossProfit.toLocaleString() })
+  if (result.exportResult) summary.push({ label: 'กำไรส่งออก', value: '฿' + formatMoney(result.exportResult.grossProfit) })
+  if (result.domesticResult) summary.push({ label: 'กำไรภายใน', value: '฿' + formatMoney(result.domesticResult.grossProfit) })
   if (result.exportResult && result.domesticResult) {
-    summary.push({ label: 'กำไรขั้นต้น (รวม)', value: '฿' + result.combinedGrossProfit.toLocaleString() })
+    summary.push({ label: 'กำไรขั้นต้น (รวม)', value: '฿' + formatMoney(result.combinedGrossProfit) })
   }
 
   return {

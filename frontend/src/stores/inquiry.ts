@@ -4,6 +4,7 @@ import {
   getReceivingInquiry,
   getReceivingVolumeInquiry,
   getProcessingWageInquiry,
+  getEmployeeWageSummaryInquiry,
   getFarmerProcessingInquiry,
   getH02ProcessingInquiry,
   getH03ProcessingInquiry,
@@ -21,6 +22,8 @@ import type {
   ReceivingVolumeInquiryQuery,
   ProcessingWageInquiryResult,
   ProcessingWageInquiryQuery,
+  EmployeeWageSummaryInquiryResult,
+  EmployeeWageSummaryInquiryQuery,
   FarmerProcessingInquiryResult,
   FarmerProcessingInquiryQuery,
   H02ProcessingInquiryResult,
@@ -45,6 +48,7 @@ export const useInquiryStore = defineStore('inquiry', () => {
   const receivingResult = ref<ReceivingInquiryResult | null>(null)
   const receivingVolumeResult = ref<ReceivingVolumeInquiryResult | null>(null)
   const processingWageResult = ref<ProcessingWageInquiryResult | null>(null)
+  const employeeWageSummaryResult = ref<EmployeeWageSummaryInquiryResult | null>(null)
   const farmerProcessingResult = ref<FarmerProcessingInquiryResult | null>(null)
   const h02ProcessingResult = ref<H02ProcessingInquiryResult | null>(null)
   const h03ProcessingResult = ref<H03ProcessingInquiryResult | null>(null)
@@ -86,6 +90,18 @@ export const useInquiryStore = defineStore('inquiry', () => {
     error.value = null
     try {
       processingWageResult.value = (await getProcessingWageInquiry(query)).data
+    } catch (e: any) {
+      error.value = e?.response?.data?.message || '查詢失敗'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function searchEmployeeWageSummary(query: EmployeeWageSummaryInquiryQuery) {
+    loading.value = true
+    error.value = null
+    try {
+      employeeWageSummaryResult.value = (await getEmployeeWageSummaryInquiry(query)).data
     } catch (e: any) {
       error.value = e?.response?.data?.message || '查詢失敗'
     } finally {
@@ -205,6 +221,7 @@ export const useInquiryStore = defineStore('inquiry', () => {
     receivingResult,
     receivingVolumeResult,
     processingWageResult,
+    employeeWageSummaryResult,
     farmerProcessingResult,
     h02ProcessingResult,
     h03ProcessingResult,
@@ -219,6 +236,7 @@ export const useInquiryStore = defineStore('inquiry', () => {
     searchReceiving,
     searchReceivingVolume,
     searchProcessingWage,
+    searchEmployeeWageSummary,
     searchFarmerProcessing,
     searchH02Processing,
     searchH03Processing,

@@ -201,6 +201,7 @@ export default {
   confirmDeleteSalesOrder: '確認刪除此銷售單？',
   salesDetailAdded: '銷售明細已新增',
   salesDetailUpdated: '銷售明細已更新',
+  salesInventoryEditGuard: '此商品已有入庫明細關聯。請先移除下方入庫關聯，修改商品、重量或數量後，再重新選取入庫明細。單價仍可直接修改。',
   totalWeight: '總重量',
   totalQtyLabel: '總數量',
   noLinkedBatches: '尚未關聯進貨批次',
@@ -426,7 +427,7 @@ export default {
   costProcessing: '加工總額（H01+H02）',
   costPackaging: '包裝費',
   costH03Wage: '加工工資（H03）',
-  costContractWork: '代工總額',
+  costContractWork: '代工成本',
   costGrossProfit: '毛利',
   costGrossProfitCombined: '毛利（合計）',
 
@@ -450,5 +451,5 @@ export default {
   icUnlockSuccess: '已解除鎖定',
   icProcessingDetails: 'H01+H02 加工明細',
   icPackagingDetails: '包裝明細（裝籃/裝箱/收集檳榔葉）',
-  costFormulaNote: '出口：毛利 = 銷售金額 − 真實成本 − 包裝費（真實成本 = Σ 賣出數量 × 入庫時鎖定的生產單位成本，2026-06-30起改版，不再追溯進貨單，查幾次、查哪些銷售單組合都一致，不會重複也不會漏算）；境內：毛利 = 銷售金額 − 加工工資（H03）。',
+  costFormulaNote: '出口：毛利 = 銷售金額 − 自產真實成本 − 代工成本 − 非K01/K02包裝費。每張來源進貨單分開計算：真實單位成本 =（進貨金額 + H01 + H02 + K01/K02工資）÷ 關聯出口入庫總公斤數，再按各銷售單實際使用公斤數分攤；金額採小數2位四捨五入。境內：毛利 = 銷售金額 − 加工工資（H03）。',
 }

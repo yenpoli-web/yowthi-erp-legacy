@@ -44,6 +44,11 @@ const modules = [
     icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 11-12 0 6 6 0 0112 0zM12 7.5v3.75m0 0H9.75m2.25 0h2.25M2.25 19.5h19.5"/>`,
   },
   {
+    zh: '員工薪資總表', th: 'สรุปค่าจ้างพนักงาน',
+    path: '/queries/employee-wage-summary',
+    icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 3.75h6M6.75 5.25h10.5A2.25 2.25 0 0119.5 7.5v9a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 16.5v-9a2.25 2.25 0 012.25-2.25z"/>`,
+  },
+  {
     zh: '農民加工查詢', th: 'ตรวจสอบการแปรรูปเกษตรกร',
     path: '/queries/farmer-processing',
     icon: `<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>`,

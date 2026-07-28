@@ -14,6 +14,8 @@ body,
 #app {
   height: 100%;
   overflow: hidden;
+  /* 保留單指捲動與雙指縮放，但禁止手機把快速連點判定為雙擊放大。 */
+  touch-action: manipulation;
 }
 
 body {
@@ -47,10 +49,28 @@ button {
   font-family: inherit;
 }
 
+button,
+a,
+input,
+textarea,
+select,
+[role='button'] {
+  touch-action: manipulation;
+}
+
 input,
 textarea,
 select {
   font-family: inherit;
+}
+
+/* iOS 會在輸入框字級小於 16px 時自動放大頁面。僅在手機觸控環境覆寫。 */
+@media (max-width: 767px), (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 a {

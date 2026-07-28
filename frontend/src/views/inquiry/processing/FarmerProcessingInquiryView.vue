@@ -36,6 +36,14 @@
         >
           <i class="pi pi-cloud-upload"></i> 分享PDF（雲端硬碟）
         </button>
+        <button
+          v-if="store.farmerProcessingResult?.rows.length"
+          class="btn-secondary"
+          :disabled="exportingExcel"
+          @click="exportExcel"
+        >
+          <i class="pi pi-file-excel"></i> 匯出 Excel
+        </button>
       </div>
     </div>
 
@@ -126,6 +134,7 @@ import { useToastStore } from '../../../stores/toast'
 import DatePicker from '../../../components/common/DatePicker.vue'
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
+import { generateExcel } from '../../../utils/excelExport'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -138,6 +147,7 @@ const selectedFarmerIds = ref<string[]>([])
 const farmerModalOpen = ref(false)
 const exporting = ref(false)
 const sharingPdf = ref(false)
+const exportingExcel = ref(false)
 
 const selectedFarmerNames = computed(() =>
   farmersStore.farmers
@@ -234,6 +244,43 @@ async function sharePdf() {
     if (e?.name !== 'AbortError') toast.showToast('分享失敗，請重試', 'danger')
   } finally {
     sharingPdf.value = false
+  }
+}
+
+function exportExcel() {
+  if (!store.farmerProcessingResult) return
+  exportingExcel.value = true
+  try {
+    generateExcel({
+      columns: [
+        { header: '日期', key: 'date' },
+        { header: '農民ID', key: 'farmerId' },
+        { header: '農民姓名', key: 'farmerName' },
+        { header: '進貨量', key: 'inputQty' },
+        { header: '加工投入量', key: 'processingInputQty' },
+        { header: '完成品', key: 'outputQty' },
+        { header: '瑕疵品', key: 'defectQty' },
+        { header: '失重', key: 'loss' },
+        { header: '金額', key: 'amount' },
+      ],
+      rows: store.farmerProcessingResult.rows.map((r) => ({
+        date: formatDate(r.date),
+        farmerId: r.farmerId,
+        farmerName: r.farmerName,
+        inputQty: r.inputQty,
+        processingInputQty: r.processingInputQty,
+        outputQty: r.outputQty,
+        defectQty: r.defectQty,
+        loss: r.loss,
+        amount: r.amount,
+      })),
+      groupKey: (row) => String(row.farmerName),
+      sumKeys: ['outputQty', 'amount'],
+      labelKey: 'farmerName',
+      fileName: `加工查詢-依農民_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    })
+  } finally {
+    exportingExcel.value = false
   }
 }
 

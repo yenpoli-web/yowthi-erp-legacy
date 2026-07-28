@@ -66,23 +66,26 @@
         <div v-else class="detail-edit">
           <div class="edit-field">
             <label class="field-label">{{ t('product') }}</label>
-            <button class="select-btn-sm" @click="showProductModal = true">
+            <button class="select-btn-sm" :disabled="editingDetailHasInventoryLinks" @click="showProductModal = true">
               {{ editForm.productName || t('selectProduct') }}
             </button>
           </div>
           <div class="edit-row">
             <div class="edit-field">
               <label class="field-label">{{ t('weight') }}</label>
-              <button class="select-btn-sm num" @click="openEditKeypad('weight')">{{ editForm.weight }}</button>
+              <button class="select-btn-sm num" :disabled="editingDetailHasInventoryLinks" @click="openEditKeypad('weight')">{{ editForm.weight }}</button>
             </div>
             <div class="edit-field">
               <label class="field-label">{{ t('salesQty') }}</label>
-              <button class="select-btn-sm num" @click="openEditKeypad('quantity')">{{ editForm.quantity }}</button>
+              <button class="select-btn-sm num" :disabled="editingDetailHasInventoryLinks" @click="openEditKeypad('quantity')">{{ editForm.quantity }}</button>
             </div>
             <div class="edit-field">
               <label class="field-label">{{ t('unitPrice') }}</label>
               <button class="select-btn-sm num" @click="openEditKeypad('unitPrice')">{{ editForm.unitPrice }}</button>
             </div>
+          </div>
+          <div v-if="editingDetailHasInventoryLinks" class="inventory-edit-guard">
+            {{ t('salesInventoryEditGuard') }}
           </div>
           <div class="edit-amount">{{ t('amount') }}：<strong class="accent">฿{{ calcEditAmount().toLocaleString() }}</strong></div>
           <div class="edit-actions">
@@ -263,6 +266,17 @@ const showProductModal = ref(false)
 const saving = ref(false)
 const products = ref<any[]>([])
 
+function hasLinkedInventory(d: any) {
+  return (props.order?.inventoryDetails || []).some(
+    (link: any) => link.inventoryDetail?.productId === d.productId,
+  )
+}
+
+const editingDetailHasInventoryLinks = computed(() => {
+  const detail = activeDetails.value.find((d: any) => d.id === editingDetailId.value)
+  return detail ? hasLinkedInventory(detail) : false
+})
+
 function startEdit(d: any) {
   editingDetailId.value = d.id
   editForm.value = { productId: d.productId, productName: d.product?.name || '', weight: String(Number(d.weight)), quantity: String(Number(d.quantity)), unitPrice: String(Number(d.unitPrice)) }
@@ -299,9 +313,19 @@ async function submitInlineDetail() {
 // 確認對話框
 const confirmDialog = ref<{ open: boolean; message: string; onConfirm: () => void }>({ open: false, message: '', onConfirm: () => {} })
 function confirmSoftDelete(id: number) {
+  const detail = activeDetails.value.find((d: any) => d.id === id)
+  if (detail && hasLinkedInventory(detail)) {
+    toast.showToast(t('salesInventoryEditGuard'), 'error')
+    return
+  }
   confirmDialog.value = { open: true, message: t('confirmDeleteDetail'), onConfirm: async () => { confirmDialog.value.open = false; try { await softDeleteSalesDetail(id); toast.showToast(t('deleted'), 'success'); emit('refresh') } catch (e: any) { toast.showToast(e?.response?.data?.message || t('deleteFailed'), 'error') } } }
 }
 function confirmHardDelete(id: number) {
+  const detail = activeDetails.value.find((d: any) => d.id === id)
+  if (detail && hasLinkedInventory(detail)) {
+    toast.showToast(t('salesInventoryEditGuard'), 'error')
+    return
+  }
   confirmDialog.value = { open: true, message: t('confirmHardDelete'), onConfirm: async () => { confirmDialog.value.open = false; try { await hardDeleteSalesDetail(id); toast.showToast(t('hardDeleted'), 'success'); emit('refresh') } catch (e: any) { toast.showToast(e?.response?.data?.message || t('deleteFailed'), 'error') } } }
 }
 function confirmSoftDeleteOrder() {
@@ -415,6 +439,8 @@ async function togglePackaging() {
 .edit-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .select-btn-sm { width: 100%; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--color-text); text-align: left; cursor: pointer; }
 .select-btn-sm.num { font-weight: 700; color: var(--color-accent); text-align: center; }
+.select-btn-sm:disabled { opacity: 0.55; cursor: not-allowed; color: var(--color-text-muted); }
+.inventory-edit-guard { padding: 10px 12px; border: 1px solid rgba(232,130,12,0.45); border-radius: 8px; background: rgba(232,130,12,0.08); color: var(--color-accent); font-size: 12px; line-height: 1.55; }
 .edit-amount { font-size: 13px; color: var(--color-text-muted); }
 .edit-actions { display: flex; gap: 8px; }
 .btn-save { flex: 1; background: var(--color-accent); color: #fff; border: none; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
