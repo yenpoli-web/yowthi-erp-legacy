@@ -9,6 +9,28 @@ import { AddInventoryReceivingOrdersDto } from './dto/add-inventory-receiving-or
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
+  private async ensureDetailHasNoSalesLinks(id: number) {
+    const linkedCount = await this.prisma.salesInventoryDetail.count({
+      where: { inventoryDetailId: id },
+    });
+    if (linkedCount > 0) {
+      throw new ConflictException(
+        '此入庫明細已綁定銷售單，請先解除銷售關聯再修改或刪除',
+      );
+    }
+  }
+
+  private async ensureOrderHasNoSalesLinks(id: string) {
+    const linkedCount = await this.prisma.salesInventoryDetail.count({
+      where: { inventoryDetail: { orderId: id } },
+    });
+    if (linkedCount > 0) {
+      throw new ConflictException(
+        '此入庫單已有明細綁定銷售單，請先解除全部銷售關聯再刪除',
+      );
+    }
+  }
+
   private fixDate(d: any): string {
     if (!d) return d;
     const dt = new Date(d);
@@ -106,6 +128,7 @@ export class InventoryService {
   async softDeleteOrder(id: string) {
     const order = await this.prisma.inventoryOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException(`InventoryOrder ${id} not found`);
+    await this.ensureOrderHasNoSalesLinks(id);
     return this.prisma.inventoryOrder.update({
       where: { id }, data: { isDeleted: true, deletedAt: new Date() },
     });
@@ -116,10 +139,9 @@ export class InventoryService {
       where: { id }, include: { details: true, receivingOrders: true },
     });
     if (!order) throw new NotFoundException(`InventoryOrder ${id} not found`);
+    await this.ensureOrderHasNoSalesLinks(id);
     try {
       await this.prisma.$transaction(async (tx) => {
-        const detailIds = order.details.map((d) => d.id);
-        await tx.salesInventoryDetail.deleteMany({ where: { inventoryDetailId: { in: detailIds } } });
         await tx.inventoryReceivingOrder.deleteMany({ where: { inventoryOrderId: id } });
         await tx.inventoryContractOrder.deleteMany({ where: { inventoryOrderId: id } });
         await tx.inventoryDetail.deleteMany({ where: { orderId: id } });
@@ -161,6 +183,7 @@ export class InventoryService {
   async updateDetail(id: number, dto: UpdateInventoryDetailDto) {
     const detail = await this.prisma.inventoryDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`InventoryDetail ${id} not found`);
+    await this.ensureDetailHasNoSalesLinks(id);
     const nextQuantity = dto.quantity !== undefined ? dto.quantity : detail.quantity;
     const nextWeight = dto.weight !== undefined ? dto.weight : Number(detail.weight);
     const nextUnitPrice = dto.unitPrice !== undefined ? dto.unitPrice : Number(detail.unitPrice);
@@ -181,6 +204,7 @@ export class InventoryService {
   async softDeleteDetail(id: number) {
     const detail = await this.prisma.inventoryDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`InventoryDetail ${id} not found`);
+    await this.ensureDetailHasNoSalesLinks(id);
     return this.prisma.inventoryDetail.update({
       where: { id }, data: { isDeleted: true, deletedAt: new Date() },
     });
@@ -189,9 +213,9 @@ export class InventoryService {
   async hardDeleteDetail(id: number, operatorId: number, ip?: string) {
     const detail = await this.prisma.inventoryDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`InventoryDetail ${id} not found`);
+    await this.ensureDetailHasNoSalesLinks(id);
     try {
       await this.prisma.$transaction(async (tx) => {
-        await tx.salesInventoryDetail.deleteMany({ where: { inventoryDetailId: id } });
         await tx.inventoryDetail.delete({ where: { id } });
         await tx.auditLog.create({
           data: { actionType: 'HARD_DELETE', targetTable: 'inventory_details', targetId: String(id), operatorId, ipAddress: ip, beforeData: detail as any },
