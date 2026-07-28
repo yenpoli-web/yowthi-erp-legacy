@@ -24,7 +24,7 @@ done
 sshd -t
 nginx -t
 
-ssh_port="$(sshd -T | awk '$1 == "port" { print $2; exit }')"
+ssh_port="$(sshd -T | awk '$1 == "port" { port = $2 } END { print port }')"
 if [[ "${ssh_port}" != 22 ]]; then
   echo "Refusing unexpected SSH port: ${ssh_port}" >&2
   exit 1
