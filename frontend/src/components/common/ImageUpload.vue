@@ -98,7 +98,7 @@ function clear() {
     <input
       ref="fileInput"
       type="file"
-      accept="image/*"
+      accept="image/png,image/jpeg,image/webp"
       class="sr-only"
       @change="onFileChange"
     />
