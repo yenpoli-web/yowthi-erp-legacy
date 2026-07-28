@@ -30,6 +30,17 @@ systemctl status yowthi-backup.service --no-pager
 /usr/local/sbin/yowthi-backup-verify /var/backups/yowthi-erp/latest
 ```
 
+## Full restore test
+
+Run the restore test against a verified snapshot or a snapshot copied back from off-VPS storage:
+
+```bash
+install -m 0750 -o root -g root ops/backup/yowthi-restore-test.sh /usr/local/sbin/yowthi-restore-test
+/usr/local/sbin/yowthi-restore-test /path/to/snapshot
+```
+
+The script only accepts snapshots below the approved backup or temporary restore-source roots. It creates a uniquely named `yowthi_restore_verify_*` database, restores and validates it, extracts and counts the uploads, then removes only the temporary database and work directory. It refuses unexpected database names and filesystem paths.
+
 ## Safety and retention
 
 - Backup files are root-only and are not stored in Git.
@@ -37,4 +48,5 @@ systemctl status yowthi-backup.service --no-pager
 - Failed runs remain unpublished and their incomplete working directory is removed.
 - Automatic deletion is intentionally not enabled until off-VPS retention and restore testing are established.
 - `pg_restore --list` validates archive readability but is not a full database restore test.
+- `yowthi-restore-test` performs the full isolated restore test without connecting the ERP application to the temporary database.
 - At least one verified snapshot must be copied off the VPS after every material Production change.
