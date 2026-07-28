@@ -150,6 +150,8 @@ SELECT format(
 )
 FROM pg_tables
 WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+  AND schemaname NOT LIKE 'pg_temp_%'
+  AND schemaname NOT LIKE 'pg_toast_temp_%'
 ORDER BY schemaname, tablename
 \gexec
 SELECT count(*) || '|' || coalesce(sum(row_count), 0) FROM restore_row_counts;
