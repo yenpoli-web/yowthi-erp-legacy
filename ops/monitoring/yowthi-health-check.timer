@@ -1,0 +1,12 @@
+[Unit]
+Description=Run YOW THI ERP health check every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Persistent=true
+Unit=yowthi-health-check.service
+
+[Install]
+WantedBy=timers.target
