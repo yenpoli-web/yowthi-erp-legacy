@@ -1,0 +1,11 @@
+[Unit]
+Description=Run YOW THI ERP pCloud offsite backup daily
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15min
+Persistent=true
+Unit=yowthi-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

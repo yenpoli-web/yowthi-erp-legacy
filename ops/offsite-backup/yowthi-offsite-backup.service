@@ -1,0 +1,27 @@
+[Unit]
+Description=Copy verified YOW THI ERP snapshots to pCloud
+Wants=network-online.target
+After=network-online.target yowthi-backup.service
+ConditionPathIsDirectory=/var/backups/yowthi-erp/snapshots
+ConditionPathExists=/root/.config/rclone/rclone.conf
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/local/sbin/yowthi-offsite-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadOnlyPaths=/var/backups/yowthi-erp/snapshots
