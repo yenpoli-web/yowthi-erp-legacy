@@ -91,3 +91,51 @@ describe('SalesService inventory edit guard', () => {
     await expect(action(service)).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+describe('SalesService inventory allocation status', () => {
+  it.each([
+    [0, 'NONE'],
+    [365, 'IN_SALES'],
+    [604, 'DONE'],
+  ])(
+    'recomputes %s allocated units as %s in the unlink transaction',
+    async (allocatedQuantity, expectedStatus) => {
+      const item = {
+        id: 49,
+        salesOrderId: 'O-20260707-001',
+        inventoryDetailId: 33,
+        quantity: 365,
+      };
+      const tx = {
+        salesInventoryDetail: {
+          delete: jest.fn().mockResolvedValue(item),
+          aggregate: jest.fn().mockResolvedValue({
+            _sum: { quantity: allocatedQuantity },
+          }),
+        },
+        inventoryDetail: {
+          findUnique: jest.fn().mockResolvedValue({ id: 33, quantity: 604 }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      };
+      const prisma = {
+        salesInventoryDetail: {
+          findUnique: jest.fn().mockResolvedValue(item),
+        },
+        $transaction: jest.fn().mockImplementation((operation) => operation(tx)),
+      };
+      const service = new SalesService(prisma as any);
+
+      await expect(service.removeSalesInventoryDetail(49, 1, '127.0.0.1')).resolves.toEqual({
+        success: true,
+      });
+      expect(tx.inventoryDetail.update).toHaveBeenCalledWith({
+        where: { id: 33 },
+        data: { salesStatus: expectedStatus },
+      });
+    },
+  );
+});

@@ -26,11 +26,6 @@
           <div class="detail-product">{{ d.product?.name }}</div>
           <div class="detail-qty">× <span class="accent">{{ d.quantity }}</span></div>
           <div class="detail-price">{{ t('weight') }} {{ Number(d.weight ?? 0).toFixed(1) }}kg &middot; {{ t('unitPrice') }} ฿{{ Number(d.unitPrice ?? 0).toFixed(1) }} &middot; {{ t('amount') }} <span class="accent">฿{{ (d.amount ?? 0).toLocaleString() }}</span></div>
-          <div class="sales-status-row" v-if="canEdit">
-            <button class="ss-btn" :class="{ active: d.salesStatus === 'NONE' }" @click="setSalesStatus(d.id, 'NONE')">未銷售</button>
-            <button class="ss-btn in-sales" :class="{ active: d.salesStatus === 'IN_SALES' }" @click="setSalesStatus(d.id, 'IN_SALES')">銷售中</button>
-            <button class="ss-btn done" :class="{ active: d.salesStatus === 'DONE' }" @click="setSalesStatus(d.id, 'DONE')">已完銷</button>
-          </div>
         </div>
         <div class="detail-actions" v-if="canEdit">
           <button class="btn-sm" @click="openEdit(d)">✏️ {{ t('editDetail') }}</button>
@@ -278,7 +273,7 @@ import {
   addInventoryReceivingOrders, removeInventoryReceivingOrder,
   addInventoryContractOrders, removeInventoryContractOrder,
   getAvailableReceivingOrders, getAvailableContractOrders,
-  markSalesDone, markContractSalesDone, updateInventoryDetailSalesStatus,
+  markSalesDone, markContractSalesDone,
 } from '../../../api/inventory'
 import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vue'
 import NumericInputModal from '../../../components/common/NumericInputModal.vue'
@@ -436,11 +431,6 @@ async function doMarkContractSalesDone(contractOrderId: string, done: boolean) {
   try { await markContractSalesDone(contractOrderId, done); toast.showToast(done ? t('invSalesDone') : t('invUndoSalesDone'), 'success'); emit('refresh') }
   catch (e: any) { toast.showToast(e?.response?.data?.message || t('saveFailed'), 'error') }
 }
-async function setSalesStatus(detailId: number, status: string) {
-  try { await updateInventoryDetailSalesStatus(detailId, status); toast.showToast(t('saved'), 'success'); emit('refresh') }
-  catch (e: any) { toast.showToast(e?.response?.data?.message || t('saveFailed'), 'error') }
-}
-
 // 代工單關聯
 const showContractSelector = ref(false)
 const availableContractOrders = ref<any[]>([])
@@ -499,11 +489,6 @@ onMounted(loadProducts)
 .detail-qty { font-size: 13px; color: var(--color-text-muted); margin-top: 2px; }
 .detail-price { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; }
 .detail-actions { display: flex; gap: 6px; }
-.sales-status-row { display: flex; gap: 4px; margin-top: 8px; }
-.ss-btn { flex: 1; padding: 4px 6px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
-.ss-btn.active { border-color: var(--color-text-muted); color: var(--color-text); background: var(--color-card); }
-.ss-btn.in-sales.active { border-color: var(--color-accent); color: var(--color-accent); background: rgba(232,130,12,0.1); }
-.ss-btn.done.active { border-color: var(--color-success); color: var(--color-success); background: rgba(45,212,191,0.1); }
 .btn-sm { background: none; border: 1px solid var(--color-border); border-radius: 7px; padding: 5px 10px; font-size: 12px; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
 .btn-sm:hover { border-color: var(--color-accent); color: var(--color-text); }
 .btn-sm.danger:hover { border-color: var(--color-danger); color: var(--color-danger); }

@@ -364,7 +364,7 @@ export class InventoryService {
   // ── 可選入庫明細（供銷售系統選取，依商品類型篩選）────────
 
   async findAvailableInventoryDetails(productType?: string) {
-    const where: any = { isDeleted: false, salesStatus: { in: ['NONE', 'IN_SALES'] } };
+    const where: any = { isDeleted: false };
     if (productType === 'EXPORT' || productType === 'DOMESTIC') {
       where.product = { productType };
     }
@@ -385,6 +385,11 @@ export class InventoryService {
     return details.map(d => {
       const soldQty = d.salesDetails.reduce((s, sd) => s + sd.quantity, 0);
       const availableQty = d.quantity - soldQty;
+      const salesStatus = soldQty <= 0
+        ? 'NONE'
+        : soldQty >= d.quantity
+          ? 'DONE'
+          : 'IN_SALES';
       const isContract = (d.order as any).contractOrders?.length > 0;
       return {
         id: d.id,
@@ -398,21 +403,9 @@ export class InventoryService {
         quantity: d.quantity,
         soldQty,
         availableQty,
-        salesStatus: d.salesStatus,
+        salesStatus,
         sourceType: isContract ? 'contract' : 'receiving',
       };
     }).filter(d => d.availableQty > 0);
-  }
-
-  // ── 入庫明細 salesStatus 手動切換 ────────────────────────
-
-  async updateDetailSalesStatus(id: number, salesStatus: string) {
-    const detail = await this.prisma.inventoryDetail.findUnique({ where: { id } });
-    if (!detail) throw new NotFoundException(`InventoryDetail ${id} not found`);
-    return this.prisma.inventoryDetail.update({
-      where: { id },
-      data: { salesStatus: salesStatus as any },
-      include: { product: true },
-    });
   }
 }
