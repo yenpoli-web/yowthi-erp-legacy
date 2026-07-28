@@ -14,7 +14,7 @@ if [[ -z "${SSH_CONNECTION:-}" ]]; then
   exit 1
 fi
 
-for required_command in ufw sshd nginx curl; do
+for required_command in ufw sshd nginx curl systemctl; do
   if ! command -v "${required_command}" > /dev/null; then
     echo "Missing required command: ${required_command}" >&2
     exit 1
@@ -40,5 +40,6 @@ ufw allow 443/tcp comment 'HTTPS application'
 ufw deny 3000/tcp comment 'Block direct backend access'
 ufw logging low
 ufw --force enable
+systemctl enable --now ufw.service
 
 ufw status verbose

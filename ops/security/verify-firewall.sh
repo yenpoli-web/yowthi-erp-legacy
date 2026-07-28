@@ -17,6 +17,8 @@ grep -Eq '^22/tcp[[:space:]]+ALLOW IN[[:space:]]+Anywhere' <<< "${status}"
 grep -Eq '^80/tcp[[:space:]]+ALLOW IN[[:space:]]+Anywhere' <<< "${status}"
 grep -Eq '^443/tcp[[:space:]]+ALLOW IN[[:space:]]+Anywhere' <<< "${status}"
 grep -Eq '^3000/tcp[[:space:]]+DENY IN[[:space:]]+Anywhere' <<< "${status}"
+systemctl is-enabled --quiet ufw.service
+systemctl is-active --quiet ufw.service
 
 sshd -t
 nginx -t

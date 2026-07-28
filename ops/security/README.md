@@ -8,6 +8,8 @@ The Production VPS exposes only:
 
 Direct external access to Backend port `3000/tcp` is explicitly denied. PostgreSQL remains bound to loopback and is not exposed by UFW.
 
+The configuration explicitly enables and starts `ufw.service` so the verified rules are restored during boot.
+
 ## Safe application procedure
 
 Run from a confirmed public-key SSH session. Before changing UFW, create a configuration backup and arm a two-minute automatic rollback:
