@@ -320,6 +320,7 @@ model ProcessingDetail {
   wasteQty     Decimal         @db.Decimal(10, 3) @default(0)
   wageRate     Decimal         @db.Decimal(12, 2)
   amount       Int
+  wageCalculationVersion Int   @default(1)
   workTime     DateTime        @default(now())
   salesOrderId String?
   salesOrder   SalesOrder?     @relation(fields: [salesOrderId], references: [id])

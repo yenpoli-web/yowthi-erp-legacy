@@ -5,10 +5,81 @@ import { CreateProcessingDetailDto } from './dto/create-processing-detail.dto';
 import { UpdateProcessingDetailDto } from './dto/update-processing-detail.dto';
 import { UpdateOrderDateDto } from './dto/update-order-date.dto';
 import { format } from 'date-fns';
+import { Prisma } from '@prisma/client';
+import {
+  allocateProcessingWageGroup,
+  calculateExactProcessingWage,
+  PROCESSING_WAGE_CALCULATION_VERSION,
+} from './processing-wage.calculator';
+
+interface ProcessingWageGroupKey {
+  orderId: string;
+  employeeId: string;
+  itemId: string;
+}
 
 @Injectable()
 export class ProcessingService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private wageGroupKey(detail: ProcessingWageGroupKey): ProcessingWageGroupKey {
+    return {
+      orderId: detail.orderId,
+      employeeId: detail.employeeId,
+      itemId: detail.itemId,
+    };
+  }
+
+  private sameWageGroup(a: ProcessingWageGroupKey, b: ProcessingWageGroupKey): boolean {
+    return a.orderId === b.orderId && a.employeeId === b.employeeId && a.itemId === b.itemId;
+  }
+
+  private withExactWageAmount<T extends {
+    outputQty: Prisma.Decimal;
+    wageRate: Prisma.Decimal;
+    amount: number;
+    wageCalculationVersion: number;
+  }>(detail: T) {
+    const exactWageAmount = detail.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION
+      ? calculateExactProcessingWage(detail.outputQty, detail.wageRate).toNumber()
+      : detail.amount;
+    return { ...detail, exactWageAmount };
+  }
+
+  private async runWageTransaction<T>(
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+      } catch (error: any) {
+        if (error?.code !== 'P2034' || attempt === 3) throw error;
+      }
+    }
+    throw new Error('Processing wage transaction retry limit reached');
+  }
+
+  private async recalculateWageGroup(
+    tx: Prisma.TransactionClient,
+    group: ProcessingWageGroupKey,
+  ): Promise<void> {
+    const details = await tx.processingDetail.findMany({
+      where: {
+        ...group,
+        isDeleted: false,
+        wageCalculationVersion: PROCESSING_WAGE_CALCULATION_VERSION,
+      },
+      select: { id: true, outputQty: true, wageRate: true },
+      orderBy: { id: 'asc' },
+    });
+    const allocations = allocateProcessingWageGroup(details);
+
+    for (const [id, amount] of allocations) {
+      await tx.processingDetail.update({ where: { id }, data: { amount } });
+    }
+  }
 
   private fixDate(d: any): string {
     if (!d) return d;
@@ -43,11 +114,15 @@ export class ProcessingService {
       },
       orderBy: { orderDate: 'desc' },
     });
-    return orders.map(o => ({ ...o, orderDate: this.fixDate(o.orderDate) }));
+    return orders.map(o => ({
+      ...o,
+      orderDate: this.fixDate(o.orderDate),
+      details: o.details.map(detail => this.withExactWageAmount(detail)),
+    }));
   }
 
-  findDeletedOrders() {
-    return this.prisma.processingOrder.findMany({
+  async findDeletedOrders() {
+    const orders = await this.prisma.processingOrder.findMany({
       where: { isDeleted: true },
       include: {
         receivingItem: { select: { id: true, name: true, imageUrl: true } },
@@ -55,6 +130,10 @@ export class ProcessingService {
       },
       orderBy: { deletedAt: 'desc' },
     });
+    return orders.map(order => ({
+      ...order,
+      details: order.details.map(detail => this.withExactWageAmount(detail)),
+    }));
   }
 
   async findOneOrder(id: string, includeDeleted = false) {
@@ -76,7 +155,10 @@ export class ProcessingService {
       },
     });
     if (!order) throw new NotFoundException(`加工單 ${id} 不存在`);
-    return order;
+    return {
+      ...order,
+      details: order.details.map(detail => this.withExactWageAmount(detail)),
+    };
   }
 
   // ── 建立主單（當日+品項已有則回傳現有）────────────────────────────
@@ -236,7 +318,7 @@ export class ProcessingService {
       orderBy: { id: 'desc' },
     });
     return details.map(d => ({
-      ...d,
+      ...this.withExactWageAmount(d),
       order: d.order ? { ...d.order, orderDate: this.fixDate(d.order.orderDate) } : d.order,
     }));
   }
@@ -254,11 +336,10 @@ export class ProcessingService {
     }
     if (loss < -0.001) throw new BadRequestException(`失重計算異常：loss = ${loss}，禁止儲存`);
 
-    const amount = Math.floor(outputQty * wageRate);
     const batchCode = `${dto.orderId}-${itemId}-${Date.now()}`;
     const workTime = dto.workTime ? new Date(dto.workTime) : new Date();
 
-    const detail = await this.prisma.$transaction(async (tx) => {
+    const detail = await this.runWageTransaction(async (tx) => {
       const created = await tx.processingDetail.create({
         data: {
           batchCode,
@@ -274,7 +355,8 @@ export class ProcessingService {
           defectQty: defectQty.toString(),
           wasteQty: wasteQty.toString(),
           wageRate: wageRate.toString(),
-          amount,
+          amount: 0,
+          wageCalculationVersion: PROCESSING_WAGE_CALCULATION_VERSION,
           workTime,
           ...(dto.notes ? { notes: dto.notes } : {}),
         },
@@ -292,10 +374,11 @@ export class ProcessingService {
         });
       }
 
-      return created;
+      await this.recalculateWageGroup(tx, this.wageGroupKey(created));
+      return tx.processingDetail.findUniqueOrThrow({ where: { id: created.id } });
     });
 
-    return detail;
+    return this.withExactWageAmount(detail);
   }
 
   async createOffsetDetail(id: number) {
@@ -309,8 +392,8 @@ export class ProcessingService {
 
     const batchCode = `${original.batchCode}-OFFSET-${Date.now()}`;
 
-    return this.prisma.processingDetail.create({
-      data: {
+    const offset = await this.runWageTransaction(async (tx) => {
+      const created = await tx.processingDetail.create({ data: {
         batchCode,
         orderId: original.orderId,
         itemId: original.itemId,
@@ -323,30 +406,57 @@ export class ProcessingService {
         defectQty: (-Number(original.defectQty)).toString(),
         wasteQty: (-Number(original.wasteQty)).toString(),
         wageRate: original.wageRate,
-        amount: -original.amount,
+        amount: original.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION
+          ? 0
+          : -original.amount,
+        wageCalculationVersion: original.wageCalculationVersion,
         isOffset: true,
-      },
+      } });
+      if (created.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION) {
+        await this.recalculateWageGroup(tx, this.wageGroupKey(created));
+      }
+      return tx.processingDetail.findUniqueOrThrow({ where: { id: created.id } });
     });
+    return this.withExactWageAmount(offset);
   }
 
   async updateDetail(id: number, dto: UpdateProcessingDetailDto) {
     const detail = await this.prisma.processingDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`明細 ${id} 不存在`);
-    const outputQty = dto.outputQty ?? Number(detail.outputQty);
-    const wageRate = dto.wageRate ?? Number(detail.wageRate);
-    const amount = Math.floor(outputQty * wageRate);
-    return this.prisma.processingDetail.update({
-      where: { id },
-      data: { ...dto, amount },
+    const oldGroup = this.wageGroupKey(detail);
+    const updated = await this.runWageTransaction(async (tx) => {
+      const changed = await tx.processingDetail.update({
+        where: { id },
+        data: {
+          ...dto,
+          wageCalculationVersion: PROCESSING_WAGE_CALCULATION_VERSION,
+        },
+      });
+      const newGroup = this.wageGroupKey(changed);
+      if (detail.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION) {
+        await this.recalculateWageGroup(tx, oldGroup);
+      }
+      if (!this.sameWageGroup(oldGroup, newGroup)
+        || detail.wageCalculationVersion !== PROCESSING_WAGE_CALCULATION_VERSION) {
+        await this.recalculateWageGroup(tx, newGroup);
+      }
+      return tx.processingDetail.findUniqueOrThrow({ where: { id } });
     });
+    return this.withExactWageAmount(updated);
   }
 
   async softDeleteDetail(id: number) {
     const detail = await this.prisma.processingDetail.findFirst({ where: { id, isDeleted: false } });
     if (!detail) throw new NotFoundException(`明細 ${id} 不存在`);
-    return this.prisma.processingDetail.update({
-      where: { id },
-      data: { isDeleted: true, deletedAt: new Date() },
+    return this.runWageTransaction(async (tx) => {
+      const deleted = await tx.processingDetail.update({
+        where: { id },
+        data: { isDeleted: true, deletedAt: new Date() },
+      });
+      if (detail.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION) {
+        await this.recalculateWageGroup(tx, this.wageGroupKey(detail));
+      }
+      return deleted;
     });
   }
 
@@ -354,10 +464,13 @@ export class ProcessingService {
     const detail = await this.prisma.processingDetail.findUnique({ where: { id } });
     if (!detail) throw new NotFoundException(`明細 ${id} 不存在`);
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await this.runWageTransaction(async (tx) => {
         await tx.defectPool.deleteMany({ where: { sourceBatchId: detail.batchCode } });
         await tx.auditLog.deleteMany({ where: { processingDetailId: id } });
         await tx.processingDetail.delete({ where: { id } });
+        if (detail.wageCalculationVersion === PROCESSING_WAGE_CALCULATION_VERSION) {
+          await this.recalculateWageGroup(tx, this.wageGroupKey(detail));
+        }
         await tx.auditLog.create({
           data: { actionType: 'HARD_DELETE', targetTable: 'processing_details', targetId: String(id), operatorId, beforeData: detail as any },
         });

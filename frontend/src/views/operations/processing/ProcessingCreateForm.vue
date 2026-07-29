@@ -539,7 +539,9 @@ const calcAmount = computed(() => {
   else if (form.itemId === 'H02') output = calcH02OutputQty.value
   else output = parseFloat(form.outputQty) || 0
   const wage = parseFloat(form.wageRate) || 0
-  return Math.floor(output * wage).toLocaleString()
+  return Number((output * wage).toFixed(5)).toLocaleString(undefined, {
+    maximumFractionDigits: 5,
+  })
 })
 
 const stepLabel = computed(() => {
