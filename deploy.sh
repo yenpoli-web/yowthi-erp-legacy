@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -Eeuo pipefail
 
 echo '=============================='
 echo ' YowThi ERP Deploy Script'
@@ -9,44 +9,41 @@ echo '=============================='
 cd /var/www/yowthi-erp
 
 echo ''
-echo '>>> [1/6] git pull'
-git pull origin master
+echo '>>> [1/7] verify clean tracked worktree + git pull'
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+  echo 'Refusing deployment: tracked Production worktree changes detected.' >&2
+  git status --short --untracked-files=no >&2
+  exit 1
+fi
+git pull --ff-only origin master
 
 echo ''
-echo '>>> [2/6] backend npm install + build'
+echo '>>> [2/7] backend npm ci + prisma generate'
 cd backend
-npm install
-npm run build
-cd ..
-
-echo ''
-echo '>>> [3/6] frontend npm install + build'
-cd frontend
-npm install
-npm run build
-cd ..
-
-echo ''
-echo '>>> [4/6] prisma generate'
-cd backend
+npm ci
 npx prisma generate
+
+echo ''
+echo '>>> [3/7] verify database migration status'
+npx prisma migrate status
+
+echo ''
+echo '>>> [4/7] backend build'
+npm run build
 cd ..
 
 echo ''
-echo '=========================================='
-echo ' NOTICE: If schema.prisma was changed,'
-echo ' run manually BEFORE restarting pm2:'
-echo '   cd /var/www/yowthi-erp/backend'
-echo '   npx prisma db push'
-echo ' (or create a migration if needed)'
-echo '=========================================='
-echo ''
+echo '>>> [5/7] frontend npm ci + build'
+cd frontend
+npm ci
+npm run build
+cd ..
 
-echo '>>> [5/6] pm2 restart'
+echo '>>> [6/7] pm2 restart'
 pm2 restart yowthi-backend
 
 echo ''
-echo '>>> [6/6] pm2 logs (last 30 lines)'
+echo '>>> [7/7] pm2 logs (last 30 lines)'
 sleep 3
 pm2 logs yowthi-backend --lines 30 --nostream
 
