@@ -103,7 +103,7 @@
         </div>
         <div class="detail-stat">
           <span class="stat-label">{{ t('amount') }}</span>
-          <span class="stat-value accent">{{ Number(detail.amount).toLocaleString() }}</span>
+          <span class="stat-value accent">{{ formatDetailWage(detail) }}</span>
         </div>
       </div>
     </div>
@@ -249,6 +249,13 @@ function formatDate(d: string) {
     const [y, m, day] = s.split('-')
     return `${parseInt(day)}/${parseInt(m)}/${y.slice(2)}`
   } catch { return d }
+}
+
+function formatDetailWage(detail: any) {
+  const amount = Number(detail.exactWageAmount ?? detail.amount)
+  return amount.toLocaleString(undefined, {
+    maximumFractionDigits: detail.wageCalculationVersion === 2 ? 5 : 0,
+  })
 }
 
 function formatBatchSource(orderId: string) {

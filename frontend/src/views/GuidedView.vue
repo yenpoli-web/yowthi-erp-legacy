@@ -225,7 +225,7 @@ const amount = computed(() => {
   else if (selectedType.value === 'H02') out = h02OutputQty.value
   else out = parseFloat(outputQty.value) || 0
   const wage = parseFloat(wageRate.value) || 0
-  return Math.floor(out * wage)
+  return Number((out * wage).toFixed(5))
 })
 
 // ── inputQty（自動計算）──────────────────────────────────────────

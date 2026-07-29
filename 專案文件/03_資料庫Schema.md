@@ -346,7 +346,8 @@ model ProcessingDetail {
   wasteQty    Decimal         @db.Decimal(10, 3) @default(0) // H02/H03 專用：廢料
 
   wageRate    Decimal         @db.Decimal(12, 2)
-  amount      Int                                // Math.floor(outputQty × wageRate)
+  amount      Int                                // v1 單筆捨棄；v2 群組合計捨棄後的穩定分配額
+  wageCalculationVersion Int @default(1)          // 1=歷史單筆計算；2=同加工單+員工+加工類型合計計算
   workTime    DateTime        @default(now())
 
   // 管理者欄位
@@ -668,3 +669,4 @@ const newId = `S-${dateStr}-${nextN}`
 |2026-05-29|v4.3      |ProcessingOrder 新增 receivingItemId 欄位；唯一性條件改為 @@unique([orderDate, receivingItemId])；ProcessingItem 名稱可改 ID 不可改；ReceivingItem 新增 processingOrders relation      |
 |2026-05-30|v4.4      |ReceivingOrder 新增 h02Done/h03Done（整單層級）；新增 receivingItemId 外鍵；新增 @@unique([orderDate, receivingItemId])；ProcessingDetail 新增 receivingOrderId（H02/H03 整單來源）；defectQty 改為 H01 專用；wasteQty 改為 H02/H03 共用|
 |2026-05-30|v4.5      |ReceivingOrder 序號格式改為 S-YYYYMMDD-N（N=1～4，每進貨品項獨立循環）；ReceivingItem 新增 receivingOrders relation                                                                  |
+|2026-07-29|v4.x      |ProcessingDetail 新增 wageCalculationVersion；新版加工工資先保留每筆精確值，再按同加工單＋員工＋加工類型合計後捨棄小數，既有未編輯資料維持 v1 金額|
