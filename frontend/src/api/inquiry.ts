@@ -116,6 +116,9 @@ export interface EmployeeWageSummaryInquiryRow {
   date: string
   employeeId: string
   employeeName: string
+  processingItemId: string
+  processingItemType: string
+  processingItemName: string
   amount: number
 }
 

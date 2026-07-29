@@ -61,12 +61,13 @@
 
       <div v-else class="result-table">
         <div class="row head">
-          <span>{{ t('colDate') }}</span><span>{{ t('colEmployeeId') }}</span><span>{{ t('colEmployeeName') }}</span><span>{{ t('colAmount') }}</span>
+          <span>{{ t('colDate') }}</span><span>{{ t('colEmployeeId') }}</span><span>{{ t('colEmployeeName') }}</span><span>{{ t('colProcessingItem') }}</span><span>{{ t('colAmount') }}</span>
         </div>
-        <div v-for="(r, i) in store.employeeWageSummaryResult.rows" :key="i" class="row">
+        <div v-for="r in store.employeeWageSummaryResult.rows" :key="`${r.date}-${r.employeeId}-${r.processingItemId}`" class="row">
           <span>{{ formatDate(r.date) }}</span>
           <span>{{ r.employeeId }}</span>
           <span>{{ r.employeeName }}</span>
+          <span>{{ formatProcessingItem(r) }}</span>
           <span class="accent">฿{{ r.amount.toLocaleString() }}</span>
         </div>
       </div>
@@ -96,7 +97,11 @@ import TouchSelectorModal from '../../../components/common/TouchSelectorModal.vu
 import { generatePdf, generatePdfBlob } from '../../../utils/pdfExport'
 import { sharePdfBlob } from '../../../utils/shareExport'
 import { generateExcel } from '../../../utils/excelExport'
-import { getProcessingWageEmployees, type ProcessingWageEmployeeRow } from '../../../api/inquiry'
+import {
+  getProcessingWageEmployees,
+  type EmployeeWageSummaryInquiryRow,
+  type ProcessingWageEmployeeRow,
+} from '../../../api/inquiry'
 
 const { t } = useI18n()
 const store = useInquiryStore()
@@ -145,6 +150,12 @@ function formatDate(d: string) {
   return `${parseInt(day)}/${parseInt(m)}/${y.slice(2)}`
 }
 
+function formatProcessingItem(row: EmployeeWageSummaryInquiryRow) {
+  return row.processingItemName
+    ? `${row.processingItemType} · ${row.processingItemName}`
+    : row.processingItemType
+}
+
 function search() {
   store.searchEmployeeWageSummary({
     startDate: startDate.value || undefined,
@@ -169,12 +180,14 @@ function buildPdfOptions() {
       { header: 'วันที่', key: 'date' },
       { header: 'รหัสพนักงาน', key: 'employeeId' },
       { header: 'ชื่อพนักงาน', key: 'employeeName' },
+      { header: 'รายการแปรรูป', key: 'processingItem' },
       { header: 'จำนวนเงิน', key: 'amount', align: 'right' as const },
     ],
     rows: store.employeeWageSummaryResult.rows.map((r) => ({
       date: formatDate(r.date),
       employeeId: r.employeeId,
       employeeName: r.employeeName,
+      processingItem: formatProcessingItem(r),
       amount: r.amount.toLocaleString(),
     })),
     summary: [
@@ -219,15 +232,16 @@ function exportExcel() {
         { header: '日期', key: 'date' },
         { header: '員工ID', key: 'employeeId' },
         { header: '員工姓名', key: 'employeeName' },
+        { header: '加工項目', key: 'processingItem' },
         { header: '金額', key: 'amount' },
       ],
       rows: store.employeeWageSummaryResult.rows.map((r) => ({
         date: formatDate(r.date),
         employeeId: r.employeeId,
         employeeName: r.employeeName,
+        processingItem: formatProcessingItem(r),
         amount: r.amount,
       })),
-      groupKey: (row) => String(row.employeeName),
       sumKeys: ['amount'],
       labelKey: 'employeeName',
       fileName: `員工薪資總表_${new Date().toISOString().slice(0, 10)}.xlsx`,
@@ -268,7 +282,7 @@ onMounted(() => {
 .accent { color: var(--color-accent); }
 
 .result-table { background: var(--color-card); border: 1px solid var(--color-border); border-radius: 14px; overflow: hidden; overflow-x: auto; }
-.row { display: grid; grid-template-columns: 0.8fr 0.8fr 1.2fr 1fr; gap: 8px; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--color-border); min-width: 520px; }
+.row { display: grid; grid-template-columns: 0.8fr 0.8fr 1.2fr 1.3fr 1fr; gap: 8px; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--color-border); min-width: 680px; }
 .row:last-child { border-bottom: none; }
 .row.head { background: var(--color-surface); font-weight: 700; color: var(--color-text-muted); font-size: 12px; }
 

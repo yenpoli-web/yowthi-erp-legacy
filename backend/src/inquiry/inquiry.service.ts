@@ -1,7 +1,9 @@
-
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ReceivingInquiryQueryDto, ReceivingInquiryResult } from './dto/receiving-inquiry.dto';
+import {
+  ReceivingInquiryQueryDto,
+  ReceivingInquiryResult,
+} from './dto/receiving-inquiry.dto';
 import {
   ReceivingVolumeInquiryQueryDto,
   ReceivingVolumeInquiryResult,
@@ -66,7 +68,9 @@ import {
 export class InquiryService {
   constructor(private prisma: PrismaService) {}
 
-  async receivingInquiry(query: ReceivingInquiryQueryDto): Promise<ReceivingInquiryResult> {
+  async receivingInquiry(
+    query: ReceivingInquiryQueryDto,
+  ): Promise<ReceivingInquiryResult> {
     const where: any = { isDeleted: false };
 
     if (query.receivingItemId) {
@@ -150,7 +154,13 @@ export class InquiryService {
       const quantity = details.reduce((s, d) => s + Number(d.quantity), 0);
       const amount = details.reduce((s, d) => s + d.amount, 0);
       const avgPrice = quantity > 0 ? amount / quantity : 0;
-      return { date: order.orderDate, orderId: order.id, quantity, avgPrice, amount };
+      return {
+        date: order.orderDate,
+        orderId: order.id,
+        quantity,
+        avgPrice,
+        amount,
+      };
     });
 
     const totalQuantity = rows.reduce((s, r) => s + r.quantity, 0);
@@ -215,7 +225,7 @@ export class InquiryService {
    */
   /**
    * 員工薪資總表：僅統計加工（H01/H02/H03）金額，不包含包裝
-   * 每日每員工合併一列（同一天同一人的多筆加工明細加總）
+   * 每日、每員工、每加工項目合併一列
    */
   async employeeWageSummaryInquiry(
     query: EmployeeWageSummaryInquiryQueryDto,
@@ -236,15 +246,15 @@ export class InquiryService {
 
     const details = await this.prisma.processingDetail.findMany({
       where,
-      include: { employee: true, order: true },
+      include: { employee: true, item: true, order: true },
       orderBy: { createdAt: 'desc' },
     });
 
-    // 以「日期 + 員工ID」合併加總
+    // 以「日期 + 員工ID + 加工項目」合併，避免不同加工項目的薪資互相混合
     const grouped = new Map<string, EmployeeWageSummaryInquiryRow>();
     for (const d of details) {
       const dateKey = d.order.orderDate.toISOString().slice(0, 10);
-      const key = `${dateKey}_${d.employeeId}`;
+      const key = JSON.stringify([dateKey, d.employeeId, d.itemId]);
       const existing = grouped.get(key);
       if (existing) {
         existing.amount += d.amount;
@@ -253,12 +263,20 @@ export class InquiryService {
           date: d.order.orderDate,
           employeeId: d.employee.id,
           employeeName: d.employee.name,
+          processingItemId: d.item.id,
+          processingItemType: d.item.type,
+          processingItemName: d.item.name,
           amount: d.amount,
         });
       }
     }
 
-    const rows = Array.from(grouped.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
+    const rows = Array.from(grouped.values()).sort(
+      (a, b) =>
+        b.date.getTime() - a.date.getTime() ||
+        a.employeeId.localeCompare(b.employeeId) ||
+        a.processingItemId.localeCompare(b.processingItemId),
+    );
     const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
 
     return {
@@ -283,10 +301,17 @@ export class InquiryService {
       include: { employee: true },
     });
 
-    const seen = new Map<string, { id: string; name: string; imageUrl: string | null }>();
+    const seen = new Map<
+      string,
+      { id: string; name: string; imageUrl: string | null }
+    >();
     for (const d of details) {
       if (d.employee && !seen.has(d.employee.id)) {
-        seen.set(d.employee.id, { id: d.employee.id, name: d.employee.name, imageUrl: d.employee.imageUrl });
+        seen.set(d.employee.id, {
+          id: d.employee.id,
+          name: d.employee.name,
+          imageUrl: d.employee.imageUrl,
+        });
       }
     }
 
@@ -323,9 +348,15 @@ export class InquiryService {
     });
 
     const rows = batches.map((batch) => {
-      const inputQty = batch.details.reduce((s, d) => s + Number(d.quantity), 0);
+      const inputQty = batch.details.reduce(
+        (s, d) => s + Number(d.quantity),
+        0,
+      );
       const h01 = batch.processingDetails;
-      const processingInputQty = h01.reduce((s, p) => s + Number(p.inputQty), 0);
+      const processingInputQty = h01.reduce(
+        (s, p) => s + Number(p.inputQty),
+        0,
+      );
       const outputQty = h01.reduce((s, p) => s + Number(p.outputQty), 0);
       const defectQty = h01.reduce((s, p) => s + Number(p.defectQty), 0);
       const amount = h01.reduce((s, p) => s + p.amount, 0);
@@ -349,14 +380,23 @@ export class InquiryService {
     });
 
     const totalInputQty = rows.reduce((s, r) => s + r.inputQty, 0);
-    const totalProcessingInputQty = rows.reduce((s, r) => s + r.processingInputQty, 0);
+    const totalProcessingInputQty = rows.reduce(
+      (s, r) => s + r.processingInputQty,
+      0,
+    );
     const totalOutputQty = rows.reduce((s, r) => s + r.outputQty, 0);
     const totalDefectQty = rows.reduce((s, r) => s + r.defectQty, 0);
     const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
 
     return {
       rows,
-      summary: { totalInputQty, totalProcessingInputQty, totalOutputQty, totalDefectQty, totalAmount },
+      summary: {
+        totalInputQty,
+        totalProcessingInputQty,
+        totalOutputQty,
+        totalDefectQty,
+        totalAmount,
+      },
     };
   }
 
@@ -386,7 +426,10 @@ export class InquiryService {
             processingDetails: { where: { isDeleted: false } },
           },
         },
-        processingDetails: { where: { isDeleted: false }, include: { item: true } },
+        processingDetails: {
+          where: { isDeleted: false },
+          include: { item: true },
+        },
       },
       orderBy: { orderDate: 'desc' },
     });
@@ -397,14 +440,20 @@ export class InquiryService {
         0,
       );
       const h01Output = order.batches.reduce(
-        (s, b) => s + b.processingDetails.reduce((s2, p) => s2 + Number(p.outputQty), 0),
+        (s, b) =>
+          s +
+          b.processingDetails.reduce((s2, p) => s2 + Number(p.outputQty), 0),
         0,
       );
-      const h02Details = order.processingDetails.filter((p) => p.item.type === 'H02');
+      const h02Details = order.processingDetails.filter(
+        (p) => p.item.type === 'H02',
+      );
       const h02Output = h02Details.reduce((s, p) => s + Number(p.outputQty), 0);
       const amount = h02Details.reduce((s, p) => s + p.amount, 0);
-      const h01CompletionRate = inputQty > 0 ? (h01Output / inputQty) * 100 : null;
-      const h02CompletionRate = inputQty > 0 ? (h02Output / inputQty) * 100 : null;
+      const h01CompletionRate =
+        inputQty > 0 ? (h01Output / inputQty) * 100 : null;
+      const h02CompletionRate =
+        inputQty > 0 ? (h02Output / inputQty) * 100 : null;
 
       return {
         date: order.orderDate,
@@ -452,17 +501,24 @@ export class InquiryService {
           where: { isDeleted: false },
           include: { processingDetails: { where: { isDeleted: false } } },
         },
-        processingDetails: { where: { isDeleted: false }, include: { item: true } },
+        processingDetails: {
+          where: { isDeleted: false },
+          include: { item: true },
+        },
       },
       orderBy: { orderDate: 'desc' },
     });
 
     const rows = orders.map((order) => {
       const h01Defect = order.batches.reduce(
-        (s, b) => s + b.processingDetails.reduce((s2, p) => s2 + Number(p.defectQty), 0),
+        (s, b) =>
+          s +
+          b.processingDetails.reduce((s2, p) => s2 + Number(p.defectQty), 0),
         0,
       );
-      const h03Details = order.processingDetails.filter((p) => p.item.type === 'H03');
+      const h03Details = order.processingDetails.filter(
+        (p) => p.item.type === 'H03',
+      );
       const h03Output = h03Details.reduce((s, p) => s + Number(p.outputQty), 0);
       const amount = h03Details.reduce((s, p) => s + p.amount, 0);
 
@@ -486,7 +542,9 @@ export class InquiryService {
     };
   }
 
-  async packagingInquiry(query: PackagingInquiryQueryDto): Promise<PackagingInquiryResult> {
+  async packagingInquiry(
+    query: PackagingInquiryQueryDto,
+  ): Promise<PackagingInquiryResult> {
     const where: any = { isDeleted: false };
 
     if (query.packagingItemIds) {
@@ -578,7 +636,9 @@ export class InquiryService {
     };
   }
 
-  async transportInquiry(query: TransportInquiryQueryDto): Promise<TransportInquiryResult> {
+  async transportInquiry(
+    query: TransportInquiryQueryDto,
+  ): Promise<TransportInquiryResult> {
     const where: any = { isDeleted: false };
 
     if (query.carrierIds) {
@@ -616,7 +676,9 @@ export class InquiryService {
     };
   }
 
-  async purchaseInquiry(query: PurchaseInquiryQueryDto): Promise<PurchaseInquiryResult> {
+  async purchaseInquiry(
+    query: PurchaseInquiryQueryDto,
+  ): Promise<PurchaseInquiryResult> {
     const where: any = { isDeleted: false };
 
     if (query.startDate || query.endDate) {
@@ -657,7 +719,8 @@ export class InquiryService {
 
     if (query.customerIds) {
       const ids = query.customerIds.split(',').filter(Boolean);
-      if (ids.length) where.order = { ...(where.order ?? {}), customerId: { in: ids } };
+      if (ids.length)
+        where.order = { ...(where.order ?? {}), customerId: { in: ids } };
     }
     if (query.startDate || query.endDate) {
       where.order = {
@@ -697,7 +760,9 @@ export class InquiryService {
     };
   }
 
-  async getSalesOrdersForCost(query: SalesOrdersForCostQueryDto): Promise<SalesOrderForCostRow[]> {
+  async getSalesOrdersForCost(
+    query: SalesOrdersForCostQueryDto,
+  ): Promise<SalesOrderForCostRow[]> {
     const dateRange = {
       ...(query.startDate ? { gte: new Date(query.startDate) } : {}),
       ...(query.endDate ? { lte: new Date(query.endDate) } : {}),
@@ -709,7 +774,10 @@ export class InquiryService {
       where: {
         isDeleted: false,
         product: { productType: channel },
-        order: { isDeleted: false, ...(hasRange ? { orderDate: dateRange } : {}) },
+        order: {
+          isDeleted: false,
+          ...(hasRange ? { orderDate: dateRange } : {}),
+        },
       },
       include: { order: { include: { customer: true } } },
     });
@@ -750,7 +818,8 @@ export class InquiryService {
 
     const claimsBySource = new Map<string, Set<string>>();
     for (const c of claims) {
-      if (!claimsBySource.has(c.sourceId)) claimsBySource.set(c.sourceId, new Set());
+      if (!claimsBySource.has(c.sourceId))
+        claimsBySource.set(c.sourceId, new Set());
       claimsBySource.get(c.sourceId)!.add(c.salesOrderId);
     }
 
@@ -760,13 +829,18 @@ export class InquiryService {
 
     for (const id of sourceIds) {
       const existing = claimsBySource.get(id);
-      const isSubset = !existing || [...existing].every((s) => selectedSet.has(s));
+      const isSubset =
+        !existing || [...existing].every((s) => selectedSet.has(s));
       if (isSubset) includable.push(id);
       else excluded.push(id);
     }
 
     if (includable.length > 0) {
-      const rows: { sourceType: string; sourceId: string; salesOrderId: string }[] = [];
+      const rows: {
+        sourceType: string;
+        sourceId: string;
+        salesOrderId: string;
+      }[] = [];
       for (const id of includable) {
         const relevant = sourceRelevantOrders?.get(id) ?? selectedSet;
         for (const salesOrderId of relevant) {
@@ -774,7 +848,10 @@ export class InquiryService {
         }
       }
       if (rows.length > 0) {
-        await this.prisma.costClaim.createMany({ data: rows, skipDuplicates: true });
+        await this.prisma.costClaim.createMany({
+          data: rows,
+          skipDuplicates: true,
+        });
       }
     }
 
@@ -782,8 +859,12 @@ export class InquiryService {
   }
 
   async costAnalysis(query: CostAnalysisQueryDto): Promise<CostAnalysisResult> {
-    const exportOrderIds = query.exportOrderIds ? query.exportOrderIds.split(',').filter(Boolean) : [];
-    const domesticOrderIds = query.domesticOrderIds ? query.domesticOrderIds.split(',').filter(Boolean) : [];
+    const exportOrderIds = query.exportOrderIds
+      ? query.exportOrderIds.split(',').filter(Boolean)
+      : [];
+    const domesticOrderIds = query.domesticOrderIds
+      ? query.domesticOrderIds.split(',').filter(Boolean)
+      : [];
 
     let exportResult: CostAnalysisExportResult | null = null;
     let domesticResult: CostAnalysisDomesticResult | null = null;
@@ -1020,7 +1101,11 @@ export class InquiryService {
 
     if (domesticOrderIds.length > 0) {
       const salesAgg = await this.prisma.salesDetail.aggregate({
-        where: { isDeleted: false, orderId: { in: domesticOrderIds }, product: { productType: 'DOMESTIC' } },
+        where: {
+          isDeleted: false,
+          orderId: { in: domesticOrderIds },
+          product: { productType: 'DOMESTIC' },
+        },
         _sum: { amount: true },
       });
       const totalSales = salesAgg._sum.amount ?? 0;
@@ -1034,7 +1119,9 @@ export class InquiryService {
         },
         select: { inventoryDetailId: true },
       });
-      const inventoryDetailIds = Array.from(new Set(salesInvLinks.map((l) => l.inventoryDetailId)));
+      const inventoryDetailIds = Array.from(
+        new Set(salesInvLinks.map((l) => l.inventoryDetailId)),
+      );
 
       let totalH03Wage = 0;
 
@@ -1043,22 +1130,32 @@ export class InquiryService {
           where: { id: { in: inventoryDetailIds } },
           include: { salesDetails: { select: { salesOrderId: true } } },
         });
-        const inventoryOrderIds = Array.from(new Set(invDetails.map((d) => d.orderId)));
+        const inventoryOrderIds = Array.from(
+          new Set(invDetails.map((d) => d.orderId)),
+        );
 
-        const receivingLinks = await this.prisma.inventoryReceivingOrder.findMany({
-          where: { inventoryOrderId: { in: inventoryOrderIds } },
-        });
-        const receivingOrderIds = Array.from(new Set(receivingLinks.map((l) => l.receivingOrderId)));
+        const receivingLinks =
+          await this.prisma.inventoryReceivingOrder.findMany({
+            where: { inventoryOrderId: { in: inventoryOrderIds } },
+          });
+        const receivingOrderIds = Array.from(
+          new Set(receivingLinks.map((l) => l.receivingOrderId)),
+        );
 
         if (receivingOrderIds.length > 0) {
           const invDetailsByOrderId = new Map<string, string[]>();
           const invDetailRelevantOrders = new Map<string, Set<string>>();
           for (const d of invDetails) {
-            if (!invDetailsByOrderId.has(d.orderId)) invDetailsByOrderId.set(d.orderId, []);
+            if (!invDetailsByOrderId.has(d.orderId))
+              invDetailsByOrderId.set(d.orderId, []);
             invDetailsByOrderId.get(d.orderId)!.push(String(d.id));
             invDetailRelevantOrders.set(
               String(d.id),
-              new Set(d.salesDetails.filter((sd) => domesticOrderIds.includes(sd.salesOrderId)).map((sd) => sd.salesOrderId)),
+              new Set(
+                d.salesDetails
+                  .filter((sd) => domesticOrderIds.includes(sd.salesOrderId))
+                  .map((sd) => sd.salesOrderId),
+              ),
             );
           }
           const receivingRelevantOrders = new Map<string, Set<string>>();
@@ -1068,19 +1165,22 @@ export class InquiryService {
               .filter((l) => l.receivingOrderId === rId)
               .map((l) => l.inventoryOrderId);
             for (const invOrderId of invOrderIdsForThisReceiving) {
-              for (const detailId of invDetailsByOrderId.get(invOrderId) ?? []) {
-                for (const so of invDetailRelevantOrders.get(detailId) ?? []) result.add(so);
+              for (const detailId of invDetailsByOrderId.get(invOrderId) ??
+                []) {
+                for (const so of invDetailRelevantOrders.get(detailId) ?? [])
+                  result.add(so);
               }
             }
             receivingRelevantOrders.set(rId, result);
           }
 
-          const { includable: claimableReceivingIds } = await this.resolveClaimableSources(
-            'RECEIVING_H03',
-            receivingOrderIds,
-            domesticOrderIds,
-            receivingRelevantOrders,
-          );
+          const { includable: claimableReceivingIds } =
+            await this.resolveClaimableSources(
+              'RECEIVING_H03',
+              receivingOrderIds,
+              domesticOrderIds,
+              receivingRelevantOrders,
+            );
           if (claimableReceivingIds.length > 0) {
             const h03Agg = await this.prisma.processingDetail.aggregate({
               where: {
@@ -1102,7 +1202,8 @@ export class InquiryService {
       };
     }
 
-    const combinedGrossProfit = (exportResult?.grossProfit ?? 0) + (domesticResult?.grossProfit ?? 0);
+    const combinedGrossProfit =
+      (exportResult?.grossProfit ?? 0) + (domesticResult?.grossProfit ?? 0);
 
     return { exportResult, domesticResult, combinedGrossProfit };
   }

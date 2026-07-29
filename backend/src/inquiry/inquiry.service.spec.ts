@@ -104,3 +104,68 @@ describe('InquiryService costAnalysis', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+describe('InquiryService employeeWageSummaryInquiry', () => {
+  it('groups the same employee by processing item without mixing item totals', async () => {
+    const orderDate = new Date('2026-07-27T00:00:00.000Z');
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        employeeId: 'P12',
+        itemId: 'H01',
+        amount: 112,
+        employee: { id: 'P12', name: 'Employee 12' },
+        item: { id: 'H01', type: 'H01', name: 'First processing' },
+        order: { orderDate },
+      },
+      {
+        employeeId: 'P12',
+        itemId: 'H01',
+        amount: 94,
+        employee: { id: 'P12', name: 'Employee 12' },
+        item: { id: 'H01', type: 'H01', name: 'First processing' },
+        order: { orderDate },
+      },
+      {
+        employeeId: 'P12',
+        itemId: 'H02',
+        amount: 80,
+        employee: { id: 'P12', name: 'Employee 12' },
+        item: { id: 'H02', type: 'H02', name: 'Second processing' },
+        order: { orderDate },
+      },
+    ]);
+    const service = new InquiryService({
+      processingDetail: { findMany },
+    } as any);
+
+    await expect(service.employeeWageSummaryInquiry({})).resolves.toEqual({
+      rows: [
+        {
+          date: orderDate,
+          employeeId: 'P12',
+          employeeName: 'Employee 12',
+          processingItemId: 'H01',
+          processingItemType: 'H01',
+          processingItemName: 'First processing',
+          amount: 206,
+        },
+        {
+          date: orderDate,
+          employeeId: 'P12',
+          employeeName: 'Employee 12',
+          processingItemId: 'H02',
+          processingItemType: 'H02',
+          processingItemName: 'Second processing',
+          amount: 80,
+        },
+      ],
+      summary: { totalAmount: 286 },
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { isDeleted: false },
+      include: { employee: true, item: true, order: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+});
