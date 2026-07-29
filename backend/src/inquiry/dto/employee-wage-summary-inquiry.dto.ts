@@ -18,6 +18,9 @@ export interface EmployeeWageSummaryInquiryRow {
   date: Date;
   employeeId: string;
   employeeName: string;
+  processingItemId: string;
+  processingItemType: string;
+  processingItemName: string;
   amount: number;
 }
 
